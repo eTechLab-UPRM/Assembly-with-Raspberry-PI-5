@@ -72,7 +72,7 @@ python3 conv_demo.py
 | Mode | What students see |
 | --- | --- |
 | 1. Step by step | A small grid of numbers with the 3 × 3 kernel highlighted as it slides. Each output pixel shows its 9 multiplications, and the output fills in. `Enter` advances one pixel, `a` runs on its own. |
-| 2. Race | Python, C and assembly start at the same time, each on its own CPU core. Python's bar crawls through one image while C and assembly count how many whole images they finish in that time. |
+| 2. Race | Python, C and assembly start the same image at the same time, each on its own CPU core. Each bar is the progress of that one image: C and assembly fill theirs almost at once and show their finish time, while Python's crawls. Meanwhile, C and assembly keep processing copies and count how many they finish before Python ends. |
 
 Each mode can also be opened directly: `python3 conv_demo.py step` or
 `python3 conv_demo.py race`. The race shares memory and the CPU between the three

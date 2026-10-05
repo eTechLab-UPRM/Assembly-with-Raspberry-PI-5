@@ -9,7 +9,6 @@ conv_demo.py - see the 2D convolution in the console.
 Build the libraries first with "make". Only the Python standard library is used.
 """
 import argparse
-import math
 import platform
 import random
 import sys
@@ -17,7 +16,7 @@ import threading
 import time
 from array import array
 
-from conv_bench import KSIZE, as_c_array, conv_python, load, make_data, run_python
+from conv_bench import KSIZE, as_c_array, load, make_data, run_python
 
 # ANSI escape codes for colors and cursor movement.
 RESET, BOLD, DIM = "\033[0m", "\033[1m", "\033[2m"
@@ -104,7 +103,7 @@ def step_mode():
 # ---------------------------------------------------------------------------
 # 2. Race: all three versions run at the same time on different CPU cores.
 # ---------------------------------------------------------------------------
-BAR_WIDTH = 40
+BAR_WIDTH = 30
 
 
 def bar(fraction, width=BAR_WIDTH):
@@ -121,28 +120,14 @@ def race_mode(conv_c, conv_asm, size):
     flat_k = array("i", [c for row in k for c in row])
     oh, ow = h - (KSIZE - 1), w - (KSIZE - 1)
 
-    # Fixed bar scale: estimate how many images C and assembly will finish
-    # while Python does one, so the bars never rescale during the race.
-    probe = array("i", [0]) * (oh * ow)
-    native_t = []
-    for func in (conv_c, conv_asm):
-        best = float("inf")
-        for _ in range(2):                    # the first call can be slower
-            t = time.perf_counter()
-            func(as_c_array(flat_img), as_c_array(probe), as_c_array(flat_k), h, w)
-            best = min(best, time.perf_counter() - t)
-        native_t.append(best)
-    rows = min(16, oh)
-    t = time.perf_counter()
-    conv_python(img[:rows + KSIZE - 1], k)
-    python_t = (time.perf_counter() - t) * oh / rows
-    expected = python_t / min(native_t)
-    per_char = max(1, math.ceil(expected * 1.25 / BAR_WIDTH))
-
-    state = {"rows": 0, "done": False, "python": None,
-             "C": 0, "Assembly": 0, "outputs": {}}
+    # finish: seconds each version needed for its first image (None = running).
+    # count: images each version has finished so far.
+    state = {"rows": 0, "done": False, "python": None, "outputs": {},
+             "finish": {"Python": None, "C": None, "Assembly": None},
+             "count": {"C": 0, "Assembly": 0}}
 
     def python_worker():
+        t0 = time.perf_counter()
         out = [[0] * ow for _ in range(oh)]
         for y in range(oh):                    # same loops as conv_bench.py
             for x in range(ow):
@@ -152,15 +137,20 @@ def race_mode(conv_c, conv_asm, size):
                         acc += img[y + ky][x + kx] * k[ky][kx]
                 out[y][x] = acc
             state["rows"] = y + 1
+        state["finish"]["Python"] = time.perf_counter() - t0
         state["python"] = [v for row in out for v in row]
         state["done"] = True
 
     def native_worker(name, func):
         out = array("i", [0]) * (oh * ow)
         c_img, c_out, c_k = as_c_array(flat_img), as_c_array(out), as_c_array(flat_k)
-        while not state["done"]:
-            func(c_img, c_out, c_k, h, w)     # one whole image per call
-            state[name] += 1
+        t0 = time.perf_counter()
+        func(c_img, c_out, c_k, h, w)         # the race: one whole image
+        state["finish"][name] = time.perf_counter() - t0
+        state["count"][name] = 1
+        while not state["done"]:              # then keep going until Python ends
+            func(c_img, c_out, c_k, h, w)
+            state["count"][name] += 1
         state["outputs"][name] = out.tolist()
 
     threads = [threading.Thread(target=python_worker, daemon=True),
@@ -170,26 +160,32 @@ def race_mode(conv_c, conv_asm, size):
 
     print(CLEAR + BOLD + "RACE" + RESET
           + f"   {h} x {w} image, 3 x 3 kernel, each version on its own CPU core\n")
-    print(f"Python works on ONE image. Meanwhile, C and assembly process the "
-          f"same image\nagain and again: how many times can they finish it?\n")
-    print(f"{DIM}Python bar: progress of its one image.  "
-          f"C and assembly bars: each █ = {per_char} images.{RESET}\n")
-    print("\n\n\n")                              # space for the 3 bars
+    print("All three start the same image at the same time. Each bar is the\n"
+          "progress of that one image. When C and assembly finish, they keep\n"
+          "going with more copies until Python is done.\n")
+    print("\n\n\n")                              # space for the 3 bars + time
     sys.stdout.write(HIDE_CURSOR)
     t0 = time.perf_counter()
     for t in threads:
         t.start()
 
+    def line(name, color, frac):
+        finish = state["finish"][name]
+        if finish is None:
+            status = f"{frac * 100:5.1f}%"
+        else:
+            status = f"done in {finish:.3f} s"
+        if name != "Python" and state["count"][name]:
+            status += f", {state['count'][name]} images so far"
+        return f"{color}{name:<9}{RESET} {bar(frac)} {status}"
+
     try:
         while True:
-            elapsed = time.perf_counter() - t0
-            frac = state["rows"] / oh
             lines = [
-                f"{YELLOW}Python   {RESET} {bar(frac)} {frac * 100:5.1f}% of 1 image",
-                f"{CYAN}C        {RESET} {bar(state['C'] / (per_char * BAR_WIDTH))} {state['C']:5d} images",
-                f"{GREEN}Assembly {RESET} {bar(state['Assembly'] / (per_char * BAR_WIDTH))} "
-                f"{state['Assembly']:5d} images",
-                f"{DIM}time: {elapsed:5.1f} s{RESET}",
+                line("Python", YELLOW, state["rows"] / oh),
+                line("C", CYAN, 1.0 if state["finish"]["C"] else 0.0),
+                line("Assembly", GREEN, 1.0 if state["finish"]["Assembly"] else 0.0),
+                f"{DIM}time: {time.perf_counter() - t0:5.1f} s{RESET}",
             ]
             sys.stdout.write("\033[4F" + "".join(l + "\033[K\n" for l in lines))
             sys.stdout.flush()
@@ -203,9 +199,12 @@ def race_mode(conv_c, conv_asm, size):
 
     for t in threads:
         t.join()
+    fin, count = state["finish"], state["count"]
     ok = all(state["outputs"][n] == state["python"] for n in ("C", "Assembly"))
-    print(f"\n{BOLD}While Python finished 1 image, C finished {state['C']} "
-          f"and assembly finished {state['Assembly']}.{RESET}")
+    print(f"\n{BOLD}One image: Python {fin['Python']:.2f} s, C {fin['C']:.3f} s, "
+          f"assembly {fin['Assembly']:.3f} s.{RESET}")
+    print(f"While Python did 1 image, C did {count['C']} and assembly did "
+          f"{count['Assembly']}.")
     print((GREEN + "All three versions produced the same output."
            if ok else RED + "MISMATCH between versions!") + RESET)
     print(f"{DIM}For exact timings, one version at a time, run: "
