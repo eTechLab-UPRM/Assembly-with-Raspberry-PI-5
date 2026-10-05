@@ -4,6 +4,14 @@
  * This is the C level of the Python -> C -> assembly lab. The Makefile
  * compiles it with gcc -O2 into build/libconv_c.so.
  *
+ * Two versions, identical except for the ORDER of the two outer loops:
+ *
+ *   conv_c_cols  x outside, y inside: walks the image column by column.
+ *   conv_c_rows  y outside, x inside: walks the image row by row.
+ *
+ * Both compute exactly the same output. The difference is how they move
+ * through memory (see "Why the loop order matters" below).
+ *
  * Operation (the same in every version of this lab):
  *
  *   out[y][x] = sum over ky, kx in 0..2 of  in[y + ky][x + kx] * k[ky][kx]
@@ -20,7 +28,43 @@
 
 #define KSIZE 3
 
-void conv_c(const int32_t *in, int32_t *out, const int32_t *k, long h, long w)
+/*
+ * Why the loop order matters
+ *
+ * C stores the image row by row: in[r][c] is at index r * w + c, so the
+ * pixels of one row sit next to each other in memory. The CPU never reads a
+ * single pixel from RAM: it brings a whole 64-byte cache line (16 pixels)
+ * into its cache, so the next pixels of the same row are already there.
+ *
+ *   conv_c_rows: consecutive output pixels are neighbours in the same row,
+ *                so each cache line brought from RAM is used 16 times.
+ *   conv_c_cols: consecutive output pixels are one whole row apart
+ *                (w * 4 bytes), so almost every access needs another cache
+ *                line, and the lines are often gone before they are reused.
+ */
+
+/* Version 1: column order. Only the two outer "for" lines are swapped. */
+void conv_c_cols(const int32_t *in, int32_t *out, const int32_t *k, long h, long w)
+{
+    if (h < KSIZE || w < KSIZE)
+        return;
+
+    long oh = h - (KSIZE - 1);   /* output height */
+    long ow = w - (KSIZE - 1);   /* output width  */
+
+    for (long x = 0; x < ow; x++) {           /* every output column ...   */
+        for (long y = 0; y < oh; y++) {       /* ... every output row      */
+            int32_t acc = 0;
+            for (long ky = 0; ky < KSIZE; ky++)       /* every kernel row */
+                for (long kx = 0; kx < KSIZE; kx++)   /* every kernel col */
+                    acc += in[(y + ky) * w + (x + kx)] * k[ky * KSIZE + kx];
+            out[y * ow + x] = acc;
+        }
+    }
+}
+
+/* Version 2: row order, the order the image is stored in memory. */
+void conv_c_rows(const int32_t *in, int32_t *out, const int32_t *k, long h, long w)
 {
     if (h < KSIZE || w < KSIZE)
         return;

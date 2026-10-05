@@ -116,7 +116,7 @@ def run_race(size, draw, interval=0.1):
     rows is a list of (racer name, bar text, status text). Returns the final
     state: finish times, image counts and whether all outputs match.
     """
-    conv_c = load("libconv_c.so", "conv_c")
+    conv_c = load("libconv_c.so", "conv_c_rows")
     conv_asm = load("libconv_asm.so", "conv_asm_v4")
     h = w = size
     img, k = make_data(h, w, seed=2026)
@@ -189,9 +189,9 @@ def run_race(size, draw, interval=0.1):
 
 
 RACE_INTRO = ("All three start the same image at the same time, each on its own\n"
-              "CPU core. Each bar is the progress of that one image. When C and\n"
-              "assembly (v4, NEON) finish, they keep going with more copies until\n"
-              "Python is done.")
+              "CPU core. Each bar is the progress of that one image. When C (v2,\n"
+              "row order) and assembly (v4, NEON) finish, they keep going with\n"
+              "more copies until Python is done.")
 
 
 def race_summary(state):
@@ -321,7 +321,7 @@ def main():
         sys.exit(f"error: this lab needs a 64-bit ARM system (aarch64), "
                  f"this one is {platform.machine()}. Check 'uname -m'.")
     try:
-        load("libconv_c.so", "conv_c")
+        load("libconv_c.so", "conv_c_rows")
         load("libconv_asm.so", "conv_asm_v4")
     except RuntimeError as err:
         sys.exit(f"error: {err}")

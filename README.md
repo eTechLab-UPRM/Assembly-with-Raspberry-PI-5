@@ -27,7 +27,8 @@ of random numbers, which takes Python about 10 seconds on a Raspberry Pi 5.
 | Version | File | What changes |
 | --- | --- | --- |
 | Python | `conv_bench.py` | Four nested loops. Every `+` and `*` is interpreted while the program runs. |
-| C | `src/conv.c` | The same four loops, compiled to machine code by `gcc -O2`. |
+| C v1 column order | `src/conv.c` | The same four loops, compiled to machine code by `gcc -O2`, with the outer loop over columns: every step jumps a whole row in memory. |
+| C v2 row order | `src/conv.c` | The same code with the two outer loops swapped, so it walks memory in the order the image is stored. |
 | ASM v1 brute force | `src/conv_asm.S` | A direct translation of the C loops: every index is recomputed with `MUL`. |
 | ASM v2 pointers | `src/conv_asm.S` | No index arithmetic in the loop: pointers walk the image, the kernel stays in registers. |
 | ASM v3 MAC | `src/conv_student.S` | v2 with each `MUL` + `ADD` pair fused into one `MADD`. **Written by the students.** |
@@ -61,7 +62,7 @@ Everything also runs from the terminal, with the Python standard library only:
 make                                  # build the C and assembly libraries
 python3 conv_bench.py --test          # correctness check, must end with "all OK"
 python3 conv_bench.py                 # all versions, 2400 x 2400 image
-python3 conv_bench.py --skip-python   # quick: compare against C instead
+python3 conv_bench.py --skip-python   # quick: compare against C v1 instead
 python3 conv_demo.py                  # interactive console demo
 ```
 
@@ -76,7 +77,7 @@ and read its error.
 | Mode | What students see |
 | --- | --- |
 | 1. Step by step | A small grid of numbers with the 3 × 3 kernel highlighted as it slides. Each output pixel shows its 9 multiplications, and the output fills in. `Enter` advances one pixel, `a` runs on its own. |
-| 2. Race | Python, C and assembly v4 start the same image at the same time, each on its own CPU core. Each bar is the progress of that one image: C and assembly fill theirs almost at once and show their finish time, while Python's crawls. Meanwhile, C and assembly keep processing copies and count how many they finish before Python ends. |
+| 2. Race | Python, C v2 and assembly v4 start the same image at the same time, each on its own CPU core. Each bar is the progress of that one image: C and assembly fill theirs almost at once and show their finish time, while Python's crawls. Meanwhile, C and assembly keep processing copies and count how many they finish before Python ends. |
 
 The race shares memory and the CPU between the three versions, so it is a
 visual comparison; use `conv_bench.py` for exact timings.
@@ -95,7 +96,7 @@ lab.ipynb           the lab: explanations, code cells and questions
 docs/SETUP.md       setup guide for students, from a new Raspberry Pi
 conv_bench.py       Python version, runner and timing table
 conv_demo.py        console demo, and the notebook's step-by-step and race
-src/conv.c          C version
+src/conv.c          C versions: column order and row order
 src/conv_asm.S      ARM64 assembly v1, v2 and v4, commented line by line
 src/conv_student.S  ARM64 assembly v3, the students' exercise
 Makefile            builds build/libconv_c.so, libconv_asm.so, libconv_student.so

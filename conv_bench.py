@@ -6,7 +6,7 @@ Every version gets the same image and kernel. Each output is checked against
 the Python output, and the time of each version is printed in one table.
 
     python3 conv_bench.py                 # 2400 x 2400 image, all versions
-    python3 conv_bench.py --skip-python   # skip Python, compare against C
+    python3 conv_bench.py --skip-python   # skip Python, compare against C v1
     python3 conv_bench.py --size 512 512  # smaller image, faster
     python3 conv_bench.py --test          # correctness test on many sizes
 
@@ -54,7 +54,8 @@ def conv_python(img, k):
 # ---------------------------------------------------------------------------
 VERSIONS = [
     # (name in the table,   library,              function)
-    ("C (gcc -O2)",         "libconv_c.so",       "conv_c"),
+    ("C v1 column order",   "libconv_c.so",       "conv_c_cols"),
+    ("C v2 row order",      "libconv_c.so",       "conv_c_rows"),
     ("ASM v1 brute force",  "libconv_asm.so",     "conv_asm_v1"),
     ("ASM v2 pointers",     "libconv_asm.so",     "conv_asm_v2"),
     ("ASM v3 MAC (yours)",  "libconv_student.so", "conv_asm_v3"),
@@ -145,7 +146,7 @@ def benchmark(h, w, reps, seed, skip_python):
 
     rows = []                                  # (name, seconds, status)
     if skip_python:
-        base_name = "C"
+        base_name = "C v1"
         ref, _ = run_native(versions[0][1], flat_img, flat_k, h, w)
     else:
         base_name = "Python"
@@ -215,7 +216,7 @@ def main():
                    help="runs of each C/assembly version, the median is shown (default 5)")
     p.add_argument("--seed", type=int, default=2026, help="random seed for the data")
     p.add_argument("--skip-python", action="store_true",
-                   help="do not run Python; check and compare against C instead")
+                   help="do not run Python; check and compare against C v1 instead")
     p.add_argument("--test", action="store_true", help="correctness test on many sizes")
     args = p.parse_args()
 
