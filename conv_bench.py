@@ -77,7 +77,8 @@ def run_native(func, img, k):
     out = array("i", [-1]) * ((h - (KSIZE - 1)) * (w - (KSIZE - 1)))
     t0 = time.perf_counter()
     func(as_c_array(flat_img), as_c_array(out), as_c_array(flat_k), h, w)
-    return out.tolist(), time.perf_counter() - t0
+    elapsed = time.perf_counter() - t0        # stop the clock before tolist()
+    return out.tolist(), elapsed
 
 
 def run_python(img, k):

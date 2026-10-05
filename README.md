@@ -95,17 +95,3 @@ src/conv.c        C version
 src/conv_asm.S    ARM64 assembly version, commented line by line
 Makefile          builds build/libconv_c.so and build/libconv_asm.so
 ```
-
-## Results on a Raspberry Pi 5
-
-Raspberry Pi 5 Model B Rev 1.1, Python 3.13.5, 2048 × 2048 image
-(37.7 M multiply-adds):
-
-| Version | Time (ms) | vs Python | Check |
-| --- | ---: | ---: | --- |
-| Python | 7132.76 | 1.0x | OK |
-| C (gcc -O2) | 136.78 | 52.1x | OK |
-| Assembly (NEON) | 84.76 | 84.2x | OK |
-
-C and assembly: median of 5 runs. The hand-written assembly is about 1.6×
-faster than the compiler's C.

@@ -10,6 +10,7 @@ conv_demo.py - see the 2D convolution in the console.
 Build the libraries first with "make". Only the Python standard library is used.
 """
 import argparse
+import math
 import platform
 import random
 import shutil
@@ -18,7 +19,8 @@ import threading
 import time
 from array import array
 
-from conv_bench import KSIZE, as_c_array, load, make_data, run_native, run_python
+from conv_bench import (KSIZE, as_c_array, conv_python, load, make_data, run_native,
+                         run_python)
 
 # ANSI escape codes for colors and cursor movement.
 RESET, BOLD, DIM = "\033[0m", "\033[1m", "\033[2m"
@@ -205,8 +207,11 @@ def picture_mode(conv_c, conv_asm):
 # ---------------------------------------------------------------------------
 # 3. Race: all three versions run at the same time on different CPU cores.
 # ---------------------------------------------------------------------------
-def bar(fraction, width=40):
-    filled = int(round(fraction * width))
+BAR_WIDTH = 40
+
+
+def bar(fraction, width=BAR_WIDTH):
+    filled = min(width, int(fraction * width))
     return "█" * filled + "░" * (width - filled)
 
 
@@ -218,6 +223,24 @@ def race_mode(conv_c, conv_asm, size):
     flat_img = array("i", [px for row in img for px in row])
     flat_k = array("i", [c for row in k for c in row])
     oh, ow = h - (KSIZE - 1), w - (KSIZE - 1)
+
+    # Fixed bar scale: estimate how many images C and assembly will finish
+    # while Python does one, so the bars never rescale during the race.
+    probe = array("i", [0]) * (oh * ow)
+    native_t = []
+    for func in (conv_c, conv_asm):
+        best = float("inf")
+        for _ in range(2):                    # the first call can be slower
+            t = time.perf_counter()
+            func(as_c_array(flat_img), as_c_array(probe), as_c_array(flat_k), h, w)
+            best = min(best, time.perf_counter() - t)
+        native_t.append(best)
+    rows = min(16, oh)
+    t = time.perf_counter()
+    conv_python(img[:rows + KSIZE - 1], k)
+    python_t = (time.perf_counter() - t) * oh / rows
+    expected = python_t / min(native_t)
+    per_char = max(1, math.ceil(expected * 1.25 / BAR_WIDTH))
 
     state = {"rows": 0, "done": False, "python": None,
              "C": 0, "Assembly": 0, "outputs": {}}
@@ -252,6 +275,8 @@ def race_mode(conv_c, conv_asm, size):
           + f"   {h} x {w} image, 3 x 3 kernel, each version on its own CPU core\n")
     print(f"Python works on ONE image. Meanwhile, C and assembly process the "
           f"same image\nagain and again: how many times can they finish it?\n")
+    print(f"{DIM}Python bar: progress of its one image.  "
+          f"C and assembly bars: each █ = {per_char} images.{RESET}\n")
     print("\n\n\n")                              # space for the 3 bars
     sys.stdout.write(HIDE_CURSOR)
     t0 = time.perf_counter()
@@ -262,11 +287,10 @@ def race_mode(conv_c, conv_asm, size):
         while True:
             elapsed = time.perf_counter() - t0
             frac = state["rows"] / oh
-            most = max(40, state["C"], state["Assembly"])
             lines = [
                 f"{YELLOW}Python   {RESET} {bar(frac)} {frac * 100:5.1f}% of 1 image",
-                f"{CYAN}C        {RESET} {bar(state['C'] / most)} {state['C']:5d} images",
-                f"{GREEN}Assembly {RESET} {bar(state['Assembly'] / most)} "
+                f"{CYAN}C        {RESET} {bar(state['C'] / (per_char * BAR_WIDTH))} {state['C']:5d} images",
+                f"{GREEN}Assembly {RESET} {bar(state['Assembly'] / (per_char * BAR_WIDTH))} "
                 f"{state['Assembly']:5d} images",
                 f"{DIM}time: {elapsed:5.1f} s{RESET}",
             ]
