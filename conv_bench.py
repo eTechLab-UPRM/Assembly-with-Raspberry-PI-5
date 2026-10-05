@@ -108,11 +108,15 @@ def run_python(img, k):
 
 
 # ---------------------------------------------------------------------------
-def make_data(h, w, seed):
-    """Deterministic test data: pixels 0..255, kernel coefficients -4..4."""
+def make_data(h, w, seed, rows=None):
+    """Deterministic test data: pixels 0..255, kernel coefficients -4..4.
+
+    With rows=N only the first N rows of the image are generated (they are
+    identical to the first N rows of the full image), for previews.
+    """
     rng = random.Random(seed)
-    img = [[rng.randrange(256) for _ in range(w)] for _ in range(h)]
     k = [[rng.randrange(-4, 5) for _ in range(KSIZE)] for _ in range(KSIZE)]
+    img = [[rng.randrange(256) for _ in range(w)] for _ in range(h if rows is None else rows)]
     return img, k
 
 

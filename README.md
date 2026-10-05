@@ -77,10 +77,14 @@ and read its error.
 | Mode | What students see |
 | --- | --- |
 | 1. Step by step | A small grid of numbers with the 3 × 3 kernel highlighted as it slides. Each output pixel shows its 9 multiplications, and the output fills in. `Enter` advances one pixel, `a` runs on its own. |
-| 2. Race | Python, C v2 and assembly v4 start the same image at the same time, each on its own CPU core. Each bar is the progress of that one image: C and assembly fill theirs almost at once and show their finish time, while Python's crawls. Meanwhile, C and assembly keep processing copies and count how many they finish before Python ends. |
+| 2. Race | Python and all six C and assembly versions start the same image at the same time. Panel 1 shows the progress of that one image for each version: Python crawls while the others finish almost at once and show their time. Panel 2 counts how many times each C and assembly version finishes the image while Python works on its first one, with a scale that grows as the counts grow. |
 
-The race shares memory and the CPU between the three versions, so it is a
+The race runs seven versions on the four cores of the Pi at once, so it is a
 visual comparison; use `conv_bench.py` for exact timings.
+
+In the notebook, `notebook_image()` also shows the input image of the
+benchmark (a corner of it, and a zoom with the pixel values), the kernel and
+the same corner of the output.
 
 ## Fair timings
 
@@ -95,7 +99,7 @@ visual comparison; use `conv_bench.py` for exact timings.
 lab.ipynb           the lab: explanations, code cells and questions
 docs/SETUP.md       setup guide for students, from a new Raspberry Pi
 conv_bench.py       Python version, runner and timing table
-conv_demo.py        console demo, and the notebook's step-by-step and race
+conv_demo.py        console demo, and the notebook's step-by-step, image and race
 src/conv.c          C versions: column order and row order
 src/conv_asm.S      ARM64 assembly v1, v2 and v4, commented line by line
 src/conv_student.S  ARM64 assembly v3, the students' exercise

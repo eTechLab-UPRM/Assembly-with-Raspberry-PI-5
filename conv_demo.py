@@ -17,8 +17,8 @@ import threading
 import time
 from array import array
 
-from conv_bench import (DEFAULT_SIZE, KSIZE, as_c_array, flatten, load, make_data,
-                         run_python)
+from conv_bench import (DEFAULT_SIZE, KSIZE, as_c_array, flatten, load, load_versions,
+                         make_data, run_python)
 
 # ANSI escape codes for colors and cursor movement.
 RESET, BOLD, DIM = "\033[0m", "\033[1m", "\033[2m"
@@ -99,10 +99,10 @@ def step_mode():
 
 
 # ---------------------------------------------------------------------------
-# 2. Race: Python, C and assembly v4 run at the same time on different cores.
+# 2. Race: Python and every C/assembly version run at the same time.
 # ---------------------------------------------------------------------------
 BAR_WIDTH = 30
-RACERS = ["Python", "C", "Assembly"]
+SCALE_STEPS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000]
 
 
 def bar(fraction, width=BAR_WIDTH):
@@ -110,23 +110,31 @@ def bar(fraction, width=BAR_WIDTH):
     return "█" * filled + "░" * (width - filled)
 
 
-def run_race(size, draw, interval=0.1):
-    """Run the race and call draw(rows, elapsed) every `interval` seconds.
+def short_name(name):
+    """'ASM v3 MAC (yours)' -> 'ASM v3', 'C v1 column order' -> 'C v1'."""
+    return " ".join(name.split()[:2])
 
-    rows is a list of (racer name, bar text, status text). Returns the final
-    state: finish times, image counts and whether all outputs match.
+
+def run_race(size, draw, interval=0.1):
+    """Run the race and call draw(panel1, panel2, per_char, elapsed) repeatedly.
+
+    panel1: [(name, fraction, status)] progress of ONE image for every racer.
+    panel2: [(name, fraction, count)] images each C/assembly version has
+            finished while Python works; a full bar is per_char * BAR_WIDTH
+            images, so each bar character is worth per_char images.
+    Returns the final state: finish times, image counts, outputs check.
     """
-    conv_c = load("libconv_c.so", "conv_c_rows")
-    conv_asm = load("libconv_asm.so", "conv_asm_v4")
+    natives = [(short_name(n), f) for n, f, _ in load_versions() if f is not None]
     h = w = size
     img, k = make_data(h, w, seed=2026)
     flat_img, flat_k = flatten(img, k)
     oh, ow = h - (KSIZE - 1), w - (KSIZE - 1)
+    names = ["Python"] + [n for n, _ in natives]
 
     # finish: seconds each racer needed for its first image (None = running).
-    # count: images C and assembly have finished so far.
+    # count: images each C/assembly version has finished so far.
     state = {"rows": 0, "done": False, "python": None, "outputs": {},
-             "finish": dict.fromkeys(RACERS), "count": {"C": 0, "Assembly": 0}}
+             "finish": dict.fromkeys(names), "count": {n: 0 for n, _ in natives}}
 
     def python_worker():
         t0 = time.perf_counter()
@@ -155,73 +163,89 @@ def run_race(size, draw, interval=0.1):
             state["count"][name] += 1
         state["outputs"][name] = out
 
-    def rows():
-        result = []
-        for name in RACERS:
+    def panels():
+        panel1 = []
+        for name in names:
             finish = state["finish"][name]
             if name == "Python":
                 frac = state["rows"] / oh
             else:
                 frac = 1.0 if finish is not None else 0.0
             status = f"{frac * 100:5.1f}%" if finish is None else f"done in {finish:.3f} s"
-            if name != "Python" and state["count"][name]:
-                status += f", {state['count'][name]} images so far"
-            result.append((name, bar(frac), status))
-        return result
+            panel1.append((name, frac, status))
+        most = max(state["count"].values(), default=0)
+        per_char = next((s for s in SCALE_STEPS if most <= s * BAR_WIDTH), SCALE_STEPS[-1])
+        panel2 = [(n, c / (per_char * BAR_WIDTH), c) for n, c in state["count"].items()]
+        return panel1, panel2, per_char
 
-    threads = [threading.Thread(target=python_worker, daemon=True),
-               threading.Thread(target=native_worker, args=("C", conv_c), daemon=True),
-               threading.Thread(target=native_worker, args=("Assembly", conv_asm),
-                                daemon=True)]
-    t0 = time.perf_counter()
-    for t in threads:
-        t.start()
-    while True:
-        done = state["done"]                  # read before drawing: the last
-        draw(rows(), time.perf_counter() - t0)  # frame then shows 100 %
-        if done:
-            break
-        time.sleep(interval)
-    for t in threads:
-        t.join()
-    state["ok"] = all(state["outputs"][n] == state["python"] for n in ("C", "Assembly"))
+    threads = [threading.Thread(target=python_worker, daemon=True)]
+    threads += [threading.Thread(target=native_worker, args=nf, daemon=True) for nf in natives]
+    # C/assembly threads need Python's lock for a moment after each image;
+    # a short switch interval keeps them from waiting behind the Python loop.
+    old_interval = sys.getswitchinterval()
+    sys.setswitchinterval(0.0005)
+    try:
+        t0 = time.perf_counter()
+        for t in threads:
+            t.start()
+        while True:
+            done = state["done"]                  # read before drawing: the last
+            draw(*panels(), time.perf_counter() - t0)  # frame then shows 100 %
+            if done:
+                break
+            time.sleep(interval)
+        for t in threads:
+            t.join()
+    finally:
+        sys.setswitchinterval(old_interval)
+    state["ok"] = all(state["outputs"][n] == state["python"] for n, _ in natives)
     return state
 
 
-RACE_INTRO = ("All three start the same image at the same time, each on its own\n"
-              "CPU core. Each bar is the progress of that one image. When C (v2,\n"
-              "row order) and assembly (v4, NEON) finish, they keep going with\n"
-              "more copies until Python is done.")
+RACE_INTRO = (
+    "Python and every C and assembly version start the same image at the same\n"
+    "time. Panel 1 is the progress of that one image. Panel 2 counts how many\n"
+    "times each C and assembly version finishes the image while Python works\n"
+    "on its first one. The 7 versions share the 4 CPU cores of the Pi, so\n"
+    "compare them with each other; exact times come from conv_bench.py.")
+PANEL2_TITLE = "Images finished while Python works on one (each █ = {} images)"
+PANEL2_TITLE_HTML = "Images finished while Python works on one (full bar = {} images)"
 
 
 def race_summary(state):
     fin, count = state["finish"], state["count"]
-    return [f"One image: Python {fin['Python']:.2f} s, C {fin['C']:.3f} s, "
-            f"assembly {fin['Assembly']:.3f} s.",
-            f"While Python did 1 image, C did {count['C']} and assembly did "
-            f"{count['Assembly']}.",
-            "All three versions produced the same output." if state["ok"]
-            else "MISMATCH between versions!"]
+    best = max(count, key=count.get)
+    return ([f"Python needed {fin['Python']:.2f} s for one image. Meanwhile:"]
+            + [f"  {n:<7} finished {c:5d} images" for n, c in count.items()]
+            + [f"Fastest: {best}.",
+               "All versions produced the same output." if state["ok"]
+               else "MISMATCH between versions!"])
+
+
+def race_color(name):
+    return YELLOW if name == "Python" else CYAN if name.startswith("C") else GREEN
 
 
 def race_mode(size):
     """Console version of the race, drawn with ANSI escape codes."""
     print(CLEAR + BOLD + "RACE" + RESET + f"   preparing a {size} x {size} image...",
           flush=True)
-    colors = {"Python": YELLOW, "C": CYAN, "Assembly": GREEN}
-    first = [True]
+    drawn = [0]                                    # lines drawn by the last frame
 
-    def draw(rows, elapsed):
-        if first[0]:
-            first[0] = False
-            print(CLEAR + BOLD + "RACE" + RESET
-                  + f"   {size} x {size} image, 3 x 3 kernel\n")
+    def draw(panel1, panel2, per_char, elapsed):
+        if not drawn[0]:
+            print(CLEAR + BOLD + "RACE" + RESET + f"   {size} x {size} image, 3 x 3 kernel\n")
             print(RACE_INTRO + "\n")
-            sys.stdout.write("\n" * 4 + HIDE_CURSOR)  # space for 3 bars + time
-        lines = [f"{colors[n]}{n:<9}{RESET} {b} {s}" for n, b, s in rows]
-        lines.append(f"{DIM}time: {elapsed:5.1f} s{RESET}")
-        sys.stdout.write("\033[4F" + "".join(l + "\033[K\n" for l in lines))
+            sys.stdout.write(HIDE_CURSOR)
+        lines = [BOLD + "1. One image" + RESET]
+        lines += [f"{race_color(n)}{n:<9}{RESET} {bar(f)} {s}" for n, f, s in panel1]
+        lines += ["", BOLD + "2. " + PANEL2_TITLE.format(per_char) + RESET]
+        lines += [f"{race_color(n)}{n:<9}{RESET} {bar(f)} {c:5d}" for n, f, c in panel2]
+        lines += [f"{DIM}time: {elapsed:5.1f} s{RESET}"]
+        up = f"\033[{drawn[0]}F" if drawn[0] else ""
+        sys.stdout.write(up + "".join(l + "\033[K\n" for l in lines))
         sys.stdout.flush()
+        drawn[0] = len(lines)
 
     try:
         state = run_race(size, draw)
@@ -229,11 +253,10 @@ def race_mode(size):
         sys.stdout.write(SHOW_CURSOR + "\nRace stopped.\n")
         return
     sys.stdout.write(SHOW_CURSOR)
-    first_line, second, check = race_summary(state)
-    print(f"\n{BOLD}{first_line}{RESET}\n{second}")
+    *lines, check = race_summary(state)
+    print("\n" + BOLD + lines[0] + RESET)
+    print("\n".join(lines[1:]))
     print((GREEN if state["ok"] else RED) + check + RESET)
-    print(f"{DIM}For exact timings, one version at a time, run: "
-          f"python3 conv_bench.py{RESET}")
     ask(f"\n{DIM}[Enter] back to menu{RESET} ")
 
 
@@ -241,7 +264,8 @@ def race_mode(size):
 # Jupyter notebook versions (lab.ipynb). IPython is imported only here, so
 # the console demo keeps working with the standard library alone.
 # ---------------------------------------------------------------------------
-HTML_COLORS = {"Python": "#b58900", "C": "#268bd2", "Assembly": "#2aa198"}
+def html_color(name):
+    return "#b58900" if name == "Python" else "#268bd2" if name.startswith("C") else "#2aa198"
 
 
 def notebook_race(size=DEFAULT_SIZE):
@@ -253,15 +277,97 @@ def notebook_race(size=DEFAULT_SIZE):
     print(f"\nPreparing a {size} x {size} image...", flush=True)
     handle = display(HTML(""), display_id=True)
 
-    def draw(rows, elapsed):
-        lines = [f'<span style="color:{HTML_COLORS[n]};font-weight:bold">{n:<9}</span>'
-                 f" {b} {escape(s)}" for n, b, s in rows]
-        lines.append(f"time: {elapsed:5.1f} s")
-        handle.update(HTML("<pre style='line-height:1.4'>" + "\n".join(lines) + "</pre>"))
+    def row(name, frac, text):
+        color = html_color(name)
+        return (f'<tr><td style="color:{color};font-weight:bold;padding:2px 12px 2px 0;text-align:left">'
+                f"{name}</td>"
+                f'<td style="width:300px;padding:2px 0"><div style="background:#ddd;'
+                f'height:14px"><div style="background:{color};height:14px;'
+                f'width:{min(frac, 1) * 100:.1f}%"></div></div></td>'
+                f'<td style="padding:2px 12px;font-family:monospace">{escape(text)}</td></tr>')
+
+    def draw(panel1, panel2, per_char, elapsed):
+        html = ["<b>1. One image</b><table style='border-collapse:collapse'>"]
+        html += [row(n, f, s) for n, f, s in panel1]
+        html += ["</table><br><b>2. " + escape(PANEL2_TITLE_HTML.format(per_char * BAR_WIDTH))
+                 + "</b>"
+                 "<table style='border-collapse:collapse'>"]
+        html += [row(n, f, f"{c} images") for n, f, c in panel2]
+        html += [f"</table><p style='font-family:monospace'>time: {elapsed:5.1f} s</p>"]
+        handle.update(HTML("".join(html)))
 
     state = run_race(size, draw)
     print("\n".join(race_summary(state)))
     return state
+
+
+def png_gray(rows):
+    """Encode a list of rows of 0..255 values as a grayscale PNG (bytes)."""
+    import struct
+    import zlib
+
+    h, w = len(rows), len(rows[0])
+    raw = b"".join(b"\x00" + bytes(r) for r in rows)    # filter 0 on every row
+
+    def chunk(kind, data):
+        return (struct.pack(">I", len(data)) + kind + data
+                + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF))
+
+    return (b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 0, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw, 9))
+            + chunk(b"IEND", b""))
+
+
+def notebook_image(size=DEFAULT_SIZE, crop=200, zoom=8):
+    """Show the benchmark's input image, its kernel and the output image.
+
+    The full image is size x size; only the top-left crop x crop corner is
+    drawn (the same pixels the benchmark uses), plus a zoom with the numbers.
+    """
+    import base64
+    from IPython.display import HTML, display
+
+    crop = min(crop, size - (KSIZE - 1))
+    zoom = min(zoom, crop)
+    img, k = make_data(size, size, seed=2026, rows=crop + KSIZE - 1)
+    window = [row[:crop + KSIZE - 1] for row in img]
+    out, _ = run_python(window, k)
+    out = [list(out[r * crop:(r + 1) * crop]) for r in range(crop)]
+    low = min(min(r) for r in out)
+    high = max(max(r) for r in out)
+    out_gray = [[(v - low) * 255 // (high - low or 1) for v in r] for r in out]
+
+    def picture(rows, title):
+        data = base64.b64encode(png_gray(rows)).decode()
+        return (f'<div style="display:inline-block;margin-right:24px;vertical-align:top">'
+                f"<b>{title}</b><br><img src='data:image/png;base64,{data}' "
+                f"style='width:{2 * len(rows[0])}px;image-rendering:pixelated'></div>")
+
+    def numbers(rows, title, gray=True):
+        cells = []
+        for r in rows:
+            tds = []
+            for v in r:
+                shade = (f"background:rgb({v},{v},{v});color:{'#000' if v > 127 else '#fff'};"
+                         if gray else "")
+                tds.append(f'<td style="{shade}padding:3px 6px;text-align:right">{v}</td>')
+            cells.append("<tr>" + "".join(tds) + "</tr>")
+        return (f'<div style="display:inline-block;margin-right:24px;vertical-align:top">'
+                f"<b>{title}</b><table style='border-collapse:collapse;font-family:monospace'>"
+                + "".join(cells) + "</table></div>")
+
+    total = size * size
+    display(HTML(
+        f"<p>The full input image is <b>{size} × {size} = {total:,} pixels</b> "
+        f"({total * 4 / 1e6:.0f} MB as 32-bit integers), each a random number from 0 "
+        f"(black) to 255 (white), always the same ones (fixed seed). It looks like TV "
+        f"static because it is random. Below: its top-left {crop} × {crop} corner, "
+        f"drawn twice as large.</p>"
+        + picture([r[:crop] for r in window[:crop]], f"Input (top-left {crop} × {crop})")
+        + numbers([r[:zoom] for r in window[:zoom]], f"Zoom: top-left {zoom} × {zoom} pixels")
+        + numbers(k, "Kernel", gray=False)
+        + picture(out_gray, f"Output (same corner, {low} → black, {high} → white)")))
 
 
 def notebook_step(y, x, seed=4082):
