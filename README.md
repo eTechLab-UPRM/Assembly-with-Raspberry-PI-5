@@ -72,11 +72,10 @@ python3 conv_demo.py
 | Mode | What students see |
 | --- | --- |
 | 1. Step by step | A small grid of numbers with the 3 × 3 kernel highlighted as it slides. Each output pixel shows its 9 multiplications, and the output fills in. `Enter` advances one pixel, `a` runs on its own. |
-| 2. Picture | Shapes drawn in ASCII, before and after a kernel: edges, blur, sharpen, vertical edges, or 9 numbers they type themselves. The assembly version computes it, and the result is checked against C and Python. |
-| 3. Race | Python, C and assembly start at the same time, each on its own CPU core. Python's bar crawls through one image while C and assembly count how many whole images they finish in that time. |
+| 2. Race | Python, C and assembly start at the same time, each on its own CPU core. Python's bar crawls through one image while C and assembly count how many whole images they finish in that time. |
 
-Each mode can also be opened directly: `python3 conv_demo.py step`,
-`picture` or `race`. The race shares memory and the CPU between the three
+Each mode can also be opened directly: `python3 conv_demo.py step` or
+`python3 conv_demo.py race`. The race shares memory and the CPU between the three
 versions, so it is a visual comparison; use `conv_bench.py` for exact timings.
 
 ## Fair timings
@@ -90,7 +89,7 @@ versions, so it is a visual comparison; use `conv_bench.py` for exact timings.
 
 ```
 conv_bench.py     Python version, runner and timing table
-conv_demo.py      interactive console demo (step by step, picture, race)
+conv_demo.py      interactive console demo (step by step, race)
 src/conv.c        C version
 src/conv_asm.S    ARM64 assembly version, commented line by line
 Makefile          builds build/libconv_c.so and build/libconv_asm.so

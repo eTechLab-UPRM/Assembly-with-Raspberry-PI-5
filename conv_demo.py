@@ -4,7 +4,6 @@ conv_demo.py - see the 2D convolution in the console.
 
     python3 conv_demo.py            # menu
     python3 conv_demo.py step       # the kernel sliding over a small image
-    python3 conv_demo.py picture    # an ASCII picture before and after a filter
     python3 conv_demo.py race       # Python, C and assembly running at once
 
 Build the libraries first with "make". Only the Python standard library is used.
@@ -13,14 +12,12 @@ import argparse
 import math
 import platform
 import random
-import shutil
 import sys
 import threading
 import time
 from array import array
 
-from conv_bench import (KSIZE, as_c_array, conv_python, load, make_data, run_native,
-                         run_python)
+from conv_bench import KSIZE, as_c_array, conv_python, load, make_data, run_python
 
 # ANSI escape codes for colors and cursor movement.
 RESET, BOLD, DIM = "\033[0m", "\033[1m", "\033[2m"
@@ -105,107 +102,7 @@ def step_mode():
 
 
 # ---------------------------------------------------------------------------
-# 2. Picture: draw shapes, apply a kernel with the assembly version.
-# ---------------------------------------------------------------------------
-KERNELS = {
-    "1": ("Edges (Laplacian)", [[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]]),
-    "2": ("Blur (box)", [[1, 1, 1], [1, 1, 1], [1, 1, 1]]),
-    "3": ("Sharpen", [[0, -1, 0], [-1, 5, -1], [0, -1, 0]]),
-    "4": ("Vertical edges (Sobel)", [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]),
-}
-RAMP = " .:-=+*#%@"                  # dark to bright
-
-
-def make_picture(h, w):
-    """A filled circle, a square outline and a diagonal band on black."""
-    img = [[0] * w for _ in range(h)]
-    cy, cx, rad = h / 2, w * 0.2, min(h * 0.3, w * 0.09)
-    for y in range(h):
-        for x in range(w):
-            # Characters are about twice as tall as wide, so x is halved.
-            if ((x - cx) / 2) ** 2 + (y - cy) ** 2 <= rad ** 2:
-                img[y][x] = 200
-            in_square = w * 0.48 <= x <= w * 0.72 and h * 0.2 <= y <= h * 0.8
-            on_edge = (abs(x - w * 0.48) < 2 or abs(x - w * 0.72) < 2
-                       or abs(y - h * 0.2) < 1 or abs(y - h * 0.8) < 1)
-            if in_square and on_edge:
-                img[y][x] = 255
-            if x > w * 0.78 and abs((x - w * 0.78) / 2 - y) < 2:
-                img[y][x] = 120
-    return img
-
-
-def to_ascii(img):
-    peak = max(abs(v) for row in img for v in row) or 1
-    return ["".join(RAMP[min(len(RAMP) - 1, abs(v) * len(RAMP) // (peak + 1))]
-                    for v in row) for row in img]
-
-
-def read_custom_kernel():
-    print("Type the 9 kernel numbers, row by row, separated by spaces")
-    print("(example: 0 -1 0 -1 5 -1 0 -1 0):")
-    try:
-        values = [int(v) for v in input("> ").split()]
-    except (ValueError, EOFError):
-        values = []
-    if len(values) != 9:
-        print(RED + "It must be exactly 9 integers." + RESET)
-        time.sleep(1.5)
-        return None
-    return ("Custom", [values[0:3], values[3:6], values[6:9]])
-
-
-def picture_mode(conv_c, conv_asm):
-    cols = shutil.get_terminal_size((80, 24)).columns
-    side_by_side = cols >= 2 * 60 + 4
-    h, w = (24, 60) if side_by_side else (20, min(60, cols - 2))
-    img = make_picture(h, w)
-
-    while True:
-        print(CLEAR + BOLD + "PICTURE" + RESET + "   choose a kernel:\n")
-        for key, (name, k) in KERNELS.items():
-            print(f"  {key}) {name:<24} {k}")
-        print("  5) Custom (type your own 9 numbers)")
-        print("  q) Back to menu")
-        choice = ask("\n> ")
-        if choice == "q":
-            return
-        if choice == "5":
-            picked = read_custom_kernel()
-        else:
-            picked = KERNELS.get(choice)
-        if picked is None:
-            continue
-        name, k = picked
-
-        out_asm, t_asm = run_native(conv_asm, img, k)
-        out_c, _ = run_native(conv_c, img, k)
-        out_py, _ = run_python(img, k)
-        ow = w - 2
-        result = [out_asm[r * ow:(r + 1) * ow] for r in range(h - 2)]
-
-        before, after = to_ascii(img), to_ascii(result)
-        print(CLEAR + BOLD + f"PICTURE   kernel: {name} {k}" + RESET + "\n")
-        if side_by_side:
-            print(f"{'Before':<{w + 4}}After (computed in assembly)")
-            for r in range(h):
-                right = after[r - 1] if 1 <= r <= h - 2 else ""
-                print(f"{before[r]}    {right}")
-        else:
-            print("Before")
-            print("\n".join(before))
-            print("\nAfter (computed in assembly)")
-            print("\n".join(after))
-
-        agree = out_asm == out_c == out_py
-        print(f"\nAssembly took {t_asm * 1e6:.0f} microseconds. "
-              + (GREEN + "Python, C and assembly give the same result."
-                 if agree else RED + "MISMATCH between versions!") + RESET)
-        ask(f"\n{DIM}[Enter] choose another kernel{RESET} ")
-
-
-# ---------------------------------------------------------------------------
-# 3. Race: all three versions run at the same time on different CPU cores.
+# 2. Race: all three versions run at the same time on different CPU cores.
 # ---------------------------------------------------------------------------
 BAR_WIDTH = 40
 
@@ -320,7 +217,7 @@ def race_mode(conv_c, conv_asm, size):
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("mode", nargs="?", choices=["step", "picture", "race"],
+    p.add_argument("mode", nargs="?", choices=["step", "race"],
                    help="go straight to one mode instead of the menu")
     p.add_argument("--size", type=int, default=2048,
                    help="image size for the race (default 2048)")
@@ -331,15 +228,14 @@ def main():
                  f"this one is {platform.machine()}. Check 'uname -m'.")
     conv_c = load("libconv_c.so", "conv_c")
     conv_asm = load("libconv_asm.so", "conv_asm")
-    modes = {"1": "step", "2": "picture", "3": "race"}
+    modes = {"1": "step", "2": "race"}
 
     choice = args.mode
     while True:
         if not args.mode:
             print(CLEAR + BOLD + "2D CONVOLUTION: Python -> C -> Assembly" + RESET + "\n")
             print("  1) Step by step   how a convolution works")
-            print("  2) Picture        what a convolution does to an image")
-            print("  3) Race           how fast each language does it")
+            print("  2) Race           how fast each language does it")
             print("  q) Quit")
             key = ask("\n> ")
             if key == "q":
@@ -347,8 +243,6 @@ def main():
             choice = modes.get(key)
         if choice == "step":
             step_mode()
-        elif choice == "picture":
-            picture_mode(conv_c, conv_asm)
         elif choice == "race":
             race_mode(conv_c, conv_asm, args.size)
         if args.mode:
