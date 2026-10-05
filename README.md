@@ -36,34 +36,22 @@ of random numbers, which takes Python about 10 seconds on a Raspberry Pi 5.
 `src/conv_student.S` starts as a copy of v2 with 8 places marked `TODO`.
 Until a student completes it, the v3 row is correct but as fast as v2.
 
-## Setup on a new Raspberry Pi
+## Setup and running the lab
 
-Needs a Raspberry Pi with a 64-bit ARM CPU (Pi 5, 4, 3 or Zero 2 W) running
-Raspberry Pi OS **64-bit**, and an internet connection.
+**[docs/SETUP.md](docs/SETUP.md)** takes a student from a new Raspberry Pi
+to the open notebook, step by step, with troubleshooting. In short:
 
 ```sh
-uname -m                                   # must print aarch64
+uname -m                                         # must print aarch64
 sudo apt update
 sudo apt install -y git build-essential python3-venv
 git clone https://github.com/kevinnt16/Assembly-with-Raspberry-PI-5.git
 cd Assembly-with-Raspberry-PI-5
-
-# Jupyter, in its own environment (Raspberry Pi OS does not allow
-# installing Python packages system-wide with pip)
+make && python3 conv_bench.py --test             # must end in "all OK"
 python3 -m venv ~/jupyter-env
-~/jupyter-env/bin/pip install notebook
-```
-
-## Run the lab
-
-```sh
-cd ~/Assembly-with-Raspberry-PI-5
+~/jupyter-env/bin/pip install --index-url https://pypi.org/simple --resume-retries 5 --timeout 60 notebook
 ~/jupyter-env/bin/jupyter notebook lab.ipynb
 ```
-
-The notebook opens in the browser of the Pi. From another computer over SSH,
-start it with `--no-browser --ip=0.0.0.0` and open the address it prints,
-replacing `localhost` with the Pi's IP address.
 
 ## Without Jupyter
 
@@ -104,6 +92,7 @@ visual comparison; use `conv_bench.py` for exact timings.
 
 ```
 lab.ipynb           the lab: explanations, code cells and questions
+docs/SETUP.md       setup guide for students, from a new Raspberry Pi
 conv_bench.py       Python version, runner and timing table
 conv_demo.py        console demo, and the notebook's step-by-step and race
 src/conv.c          C version
