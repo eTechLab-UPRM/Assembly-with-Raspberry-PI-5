@@ -1,8 +1,12 @@
 # 2D Convolution on the Raspberry Pi: Python → C → Assembly
 
-The same 2D convolution written three times, in Python, in C and in ARM64
-assembly, and timed on the same data on a Raspberry Pi. The goal is to see
-how much speed each step down in language depth buys.
+The same 2D convolution written in Python, in C and in ARM64 assembly, and
+timed on the same data on a Raspberry Pi. The goal is to see how much speed
+each step down in language depth buys, and how the way assembly is written
+changes its speed.
+
+The lab is the Jupyter notebook **`lab.ipynb`**: it reads like a short book
+chapter, runs the code in its cells, and has the questions students answer.
 
 ## The operation
 
@@ -15,68 +19,79 @@ out[y][x] = Σ (ky = 0..2) Σ (kx = 0..2)  in[y + ky][x + kx] · k[ky][kx]
 ```
 
 The output is `(H − 2) × (W − 2)` (no padding). As in deep-learning
-libraries, the kernel is not flipped.
+libraries, the kernel is not flipped. The benchmark uses a 2400 × 2400 image
+of random numbers, which takes Python about 10 seconds on a Raspberry Pi 5.
 
-## The three versions
+## The versions
 
-| Version | File | What it shows |
+| Version | File | What changes |
 | --- | --- | --- |
 | Python | `conv_bench.py` | Four nested loops. Every `+` and `*` is interpreted while the program runs. |
 | C | `src/conv.c` | The same four loops, compiled to machine code by `gcc -O2`. |
-| Assembly | `src/conv_asm.S` | Written by hand: NEON vector instructions compute 4 output pixels at once, the kernel stays in registers, and pointers replace index arithmetic. |
+| ASM v1 brute force | `src/conv_asm.S` | A direct translation of the C loops: every index is recomputed with `MUL`. |
+| ASM v2 pointers | `src/conv_asm.S` | No index arithmetic in the loop: pointers walk the image, the kernel stays in registers. |
+| ASM v3 MAC | `src/conv_student.S` | v2 with each `MUL` + `ADD` pair fused into one `MADD`. **Written by the students.** |
+| ASM v4 NEON | `src/conv_asm.S` | Vector instructions compute 4 output pixels at once. |
 
-## Requirements
-
-- A Raspberry Pi with a 64-bit ARM CPU (Pi 5, 4, 3 or Zero 2 W) running
-  Raspberry Pi OS **64-bit**. `uname -m` must print `aarch64`.
-- `git`, `gcc` and `make`. Python 3 is already part of Raspberry Pi OS, and
-  the script only uses its standard library.
+`src/conv_student.S` starts as a copy of v2 with 8 places marked `TODO`.
+Until a student completes it, the v3 row is correct but as fast as v2.
 
 ## Setup on a new Raspberry Pi
+
+Needs a Raspberry Pi with a 64-bit ARM CPU (Pi 5, 4, 3 or Zero 2 W) running
+Raspberry Pi OS **64-bit**, and an internet connection.
 
 ```sh
 uname -m                                   # must print aarch64
 sudo apt update
-sudo apt install -y git build-essential
+sudo apt install -y git build-essential python3-venv
 git clone https://github.com/kevinnt16/Assembly-with-Raspberry-PI-5.git
 cd Assembly-with-Raspberry-PI-5
+
+# Jupyter, in its own environment (Raspberry Pi OS does not allow
+# installing Python packages system-wide with pip)
+python3 -m venv ~/jupyter-env
+~/jupyter-env/bin/pip install notebook
 ```
 
-## Build and run
+## Run the lab
 
 ```sh
-make                              # builds build/libconv_c.so and build/libconv_asm.so
-python3 conv_bench.py --test      # correctness check, must end with "all OK"
-python3 conv_bench.py             # main run, 2048 x 2048 image
+cd ~/Assembly-with-Raspberry-PI-5
+~/jupyter-env/bin/jupyter notebook lab.ipynb
 ```
 
-The main run prints one row per version: its time, how many times faster it
-is than Python, and `OK` if its output equals the Python output. A
-`MISMATCH` row does not count, however fast it is.
+The notebook opens in the browser of the Pi. From another computer over SSH,
+start it with `--no-browser --ip=0.0.0.0` and open the address it prints,
+replacing `localhost` with the Pi's IP address.
 
-Pure Python takes several seconds on the 2048 × 2048 image. For a quicker
-run, use a smaller image:
+## Without Jupyter
+
+Everything also runs from the terminal, with the Python standard library only:
 
 ```sh
-python3 conv_bench.py --size 512 512
+make                                  # build the C and assembly libraries
+python3 conv_bench.py --test          # correctness check, must end with "all OK"
+python3 conv_bench.py                 # all versions, 2400 x 2400 image
+python3 conv_bench.py --skip-python   # quick: compare against C instead
+python3 conv_demo.py                  # interactive console demo
 ```
 
-## Interactive demo
+`conv_bench.py` prints one row per version: the median time of 5 runs (Python
+runs once), how many times faster it is than Python, and `OK` if its output
+equals the Python output. A `MISMATCH` row does not count, however fast it
+is. `NOT BUILT` means the library is missing or did not assemble: run `make`
+and read its error.
 
-`conv_demo.py` shows the convolution in the console, with a menu:
-
-```sh
-python3 conv_demo.py
-```
+`conv_demo.py` has two modes:
 
 | Mode | What students see |
 | --- | --- |
 | 1. Step by step | A small grid of numbers with the 3 × 3 kernel highlighted as it slides. Each output pixel shows its 9 multiplications, and the output fills in. `Enter` advances one pixel, `a` runs on its own. |
-| 2. Race | Python, C and assembly start the same image at the same time, each on its own CPU core. Each bar is the progress of that one image: C and assembly fill theirs almost at once and show their finish time, while Python's crawls. Meanwhile, C and assembly keep processing copies and count how many they finish before Python ends. |
+| 2. Race | Python, C and assembly v4 start the same image at the same time, each on its own CPU core. Each bar is the progress of that one image: C and assembly fill theirs almost at once and show their finish time, while Python's crawls. Meanwhile, C and assembly keep processing copies and count how many they finish before Python ends. |
 
-Each mode can also be opened directly: `python3 conv_demo.py step` or
-`python3 conv_demo.py race`. The race shares memory and the CPU between the three
-versions, so it is a visual comparison; use `conv_bench.py` for exact timings.
+The race shares memory and the CPU between the three versions, so it is a
+visual comparison; use `conv_bench.py` for exact timings.
 
 ## Fair timings
 
@@ -88,22 +103,11 @@ versions, so it is a visual comparison; use `conv_bench.py` for exact timings.
 ## Files
 
 ```
-conv_bench.py     Python version, runner and timing table
-conv_demo.py      interactive console demo (step by step, race)
-src/conv.c        C version
-src/conv_asm.S    ARM64 assembly version, commented line by line
-Makefile          builds build/libconv_c.so and build/libconv_asm.so
+lab.ipynb           the lab: explanations, code cells and questions
+conv_bench.py       Python version, runner and timing table
+conv_demo.py        console demo, and the notebook's step-by-step and race
+src/conv.c          C version
+src/conv_asm.S      ARM64 assembly v1, v2 and v4, commented line by line
+src/conv_student.S  ARM64 assembly v3, the students' exercise
+Makefile            builds build/libconv_c.so, libconv_asm.so, libconv_student.so
 ```
-
-## Results on a Raspberry Pi 5
-
-Raspberry Pi 5 Model B Rev 1.1, Python 3.13.5, 2048 × 2048 image
-(37.7 M multiply-adds), `python3 conv_bench.py`:
-
-| Version | Time (ms) | vs Python | Check |
-| --- | ---: | ---: | --- |
-| Python | 7162.23 | 1.0x | OK |
-| C (gcc -O2) | 60.19 | 119.0x | OK |
-| Assembly (NEON) | 8.00 | 895.5x | OK |
-
-C and assembly: median of 5 runs.

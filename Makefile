@@ -1,6 +1,6 @@
-# Builds the two shared libraries that conv_bench.py loads with ctypes.
+# Builds the shared libraries that conv_bench.py loads with ctypes.
 #
-#   make          build build/libconv_c.so and build/libconv_asm.so
+#   make          build everything into build/
 #   make clean    remove build/
 #
 # To cross-compile from a PC instead of the Pi:
@@ -10,14 +10,21 @@ CC     ?= gcc
 CFLAGS := -O2 -Wall -Wextra -fPIC -shared
 BUILD  := build
 
-all: $(BUILD)/libconv_c.so $(BUILD)/libconv_asm.so
+all: $(BUILD)/libconv_c.so $(BUILD)/libconv_asm.so $(BUILD)/libconv_student.so
 
 # C version, optimized by the compiler (-O2).
 $(BUILD)/libconv_c.so: src/conv.c | $(BUILD)
 	$(CC) $(CFLAGS) -o $@ $<
 
-# Hand-written assembly. gcc runs the assembler for us.
+# Hand-written assembly, versions v1, v2 and v4. gcc runs the assembler.
 $(BUILD)/libconv_asm.so: src/conv_asm.S | $(BUILD)
+	$(CC) $(CFLAGS) -o $@ $<
+
+# Version v3, the one students write, in its own library. The old library is
+# deleted first, so a file that fails to assemble shows up as NOT BUILT
+# instead of silently running the previous version.
+$(BUILD)/libconv_student.so: src/conv_student.S | $(BUILD)
+	rm -f $@
 	$(CC) $(CFLAGS) -o $@ $<
 
 $(BUILD):

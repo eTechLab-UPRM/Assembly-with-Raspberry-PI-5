@@ -6,7 +6,8 @@ conv_demo.py - see the 2D convolution in the console.
     python3 conv_demo.py step       # the kernel sliding over a small image
     python3 conv_demo.py race       # Python, C and assembly running at once
 
-Build the libraries first with "make". Only the Python standard library is used.
+Build the libraries first with "make". The console demo uses only the Python
+standard library; lab.ipynb also uses notebook_step() and notebook_race().
 """
 import argparse
 import platform
@@ -16,7 +17,8 @@ import threading
 import time
 from array import array
 
-from conv_bench import KSIZE, as_c_array, load, make_data, run_python
+from conv_bench import (DEFAULT_SIZE, KSIZE, as_c_array, flatten, load, make_data,
+                         run_python)
 
 # ANSI escape codes for colors and cursor movement.
 RESET, BOLD, DIM = "\033[0m", "\033[1m", "\033[2m"
@@ -73,13 +75,9 @@ def show_step(img, k, out, y, x):
 
 
 def step_mode():
-    rng = random.Random()
-    h, w = 6, 8
-    img = [[rng.randrange(10) for _ in range(w)] for _ in range(h)]
-    k = [[rng.randrange(-1, 3) for _ in range(KSIZE)] for _ in range(KSIZE)]
-    out, _ = run_python(img, k)
-    oh, ow = h - 2, w - 2
-    out = [out[r * ow:(r + 1) * ow] for r in range(oh)]
+    img, k, out = step_example(seed=random.randrange(10**6))
+    h, w = len(img), len(img[0])
+    oh, ow = len(out), len(out[0])
 
     auto = False
     for y in range(oh):
@@ -93,17 +91,18 @@ def step_mode():
                 return
             auto = key == "a"
 
-    macs = (2048 - 2) * (2048 - 2) * 9
+    macs = (DEFAULT_SIZE - 2) ** 2 * 9
     print(f"\nThis {h} x {w} image needed {oh} x {ow} x 9 = {oh * ow * 9} "
-          f"multiply-adds.\nThe 2048 x 2048 image of the race needs "
+          f"multiply-adds.\nThe {DEFAULT_SIZE} x {DEFAULT_SIZE} image of the race needs "
           f"{macs:,}: that is why the language matters.")
     ask(f"\n{DIM}[Enter] back to menu{RESET} ")
 
 
 # ---------------------------------------------------------------------------
-# 2. Race: all three versions run at the same time on different CPU cores.
+# 2. Race: Python, C and assembly v4 run at the same time on different cores.
 # ---------------------------------------------------------------------------
 BAR_WIDTH = 30
+RACERS = ["Python", "C", "Assembly"]
 
 
 def bar(fraction, width=BAR_WIDTH):
@@ -111,20 +110,23 @@ def bar(fraction, width=BAR_WIDTH):
     return "█" * filled + "░" * (width - filled)
 
 
-def race_mode(conv_c, conv_asm, size):
+def run_race(size, draw, interval=0.1):
+    """Run the race and call draw(rows, elapsed) every `interval` seconds.
+
+    rows is a list of (racer name, bar text, status text). Returns the final
+    state: finish times, image counts and whether all outputs match.
+    """
+    conv_c = load("libconv_c.so", "conv_c")
+    conv_asm = load("libconv_asm.so", "conv_asm_v4")
     h = w = size
-    print(CLEAR + BOLD + "RACE" + RESET + f"   preparing a {h} x {w} image...",
-          flush=True)
     img, k = make_data(h, w, seed=2026)
-    flat_img = array("i", [px for row in img for px in row])
-    flat_k = array("i", [c for row in k for c in row])
+    flat_img, flat_k = flatten(img, k)
     oh, ow = h - (KSIZE - 1), w - (KSIZE - 1)
 
-    # finish: seconds each version needed for its first image (None = running).
-    # count: images each version has finished so far.
+    # finish: seconds each racer needed for its first image (None = running).
+    # count: images C and assembly have finished so far.
     state = {"rows": 0, "done": False, "python": None, "outputs": {},
-             "finish": {"Python": None, "C": None, "Assembly": None},
-             "count": {"C": 0, "Assembly": 0}}
+             "finish": dict.fromkeys(RACERS), "count": {"C": 0, "Assembly": 0}}
 
     def python_worker():
         t0 = time.perf_counter()
@@ -138,7 +140,7 @@ def race_mode(conv_c, conv_asm, size):
                 out[y][x] = acc
             state["rows"] = y + 1
         state["finish"]["Python"] = time.perf_counter() - t0
-        state["python"] = [v for row in out for v in row]
+        state["python"] = array("i", [v for row in out for v in row])
         state["done"] = True
 
     def native_worker(name, func):
@@ -151,65 +153,158 @@ def race_mode(conv_c, conv_asm, size):
         while not state["done"]:              # then keep going until Python ends
             func(c_img, c_out, c_k, h, w)
             state["count"][name] += 1
-        state["outputs"][name] = out.tolist()
+        state["outputs"][name] = out
+
+    def rows():
+        result = []
+        for name in RACERS:
+            finish = state["finish"][name]
+            if name == "Python":
+                frac = state["rows"] / oh
+            else:
+                frac = 1.0 if finish is not None else 0.0
+            status = f"{frac * 100:5.1f}%" if finish is None else f"done in {finish:.3f} s"
+            if name != "Python" and state["count"][name]:
+                status += f", {state['count'][name]} images so far"
+            result.append((name, bar(frac), status))
+        return result
 
     threads = [threading.Thread(target=python_worker, daemon=True),
                threading.Thread(target=native_worker, args=("C", conv_c), daemon=True),
                threading.Thread(target=native_worker, args=("Assembly", conv_asm),
                                 daemon=True)]
-
-    print(CLEAR + BOLD + "RACE" + RESET
-          + f"   {h} x {w} image, 3 x 3 kernel, each version on its own CPU core\n")
-    print("All three start the same image at the same time. Each bar is the\n"
-          "progress of that one image. When C and assembly finish, they keep\n"
-          "going with more copies until Python is done.\n")
-    print("\n\n\n")                              # space for the 3 bars + time
-    sys.stdout.write(HIDE_CURSOR)
     t0 = time.perf_counter()
     for t in threads:
         t.start()
+    while True:
+        done = state["done"]                  # read before drawing: the last
+        draw(rows(), time.perf_counter() - t0)  # frame then shows 100 %
+        if done:
+            break
+        time.sleep(interval)
+    for t in threads:
+        t.join()
+    state["ok"] = all(state["outputs"][n] == state["python"] for n in ("C", "Assembly"))
+    return state
 
-    def line(name, color, frac):
-        finish = state["finish"][name]
-        if finish is None:
-            status = f"{frac * 100:5.1f}%"
-        else:
-            status = f"done in {finish:.3f} s"
-        if name != "Python" and state["count"][name]:
-            status += f", {state['count'][name]} images so far"
-        return f"{color}{name:<9}{RESET} {bar(frac)} {status}"
+
+RACE_INTRO = ("All three start the same image at the same time, each on its own\n"
+              "CPU core. Each bar is the progress of that one image. When C and\n"
+              "assembly (v4, NEON) finish, they keep going with more copies until\n"
+              "Python is done.")
+
+
+def race_summary(state):
+    fin, count = state["finish"], state["count"]
+    return [f"One image: Python {fin['Python']:.2f} s, C {fin['C']:.3f} s, "
+            f"assembly {fin['Assembly']:.3f} s.",
+            f"While Python did 1 image, C did {count['C']} and assembly did "
+            f"{count['Assembly']}.",
+            "All three versions produced the same output." if state["ok"]
+            else "MISMATCH between versions!"]
+
+
+def race_mode(size):
+    """Console version of the race, drawn with ANSI escape codes."""
+    print(CLEAR + BOLD + "RACE" + RESET + f"   preparing a {size} x {size} image...",
+          flush=True)
+    colors = {"Python": YELLOW, "C": CYAN, "Assembly": GREEN}
+    first = [True]
+
+    def draw(rows, elapsed):
+        if first[0]:
+            first[0] = False
+            print(CLEAR + BOLD + "RACE" + RESET
+                  + f"   {size} x {size} image, 3 x 3 kernel\n")
+            print(RACE_INTRO + "\n")
+            sys.stdout.write("\n" * 4 + HIDE_CURSOR)  # space for 3 bars + time
+        lines = [f"{colors[n]}{n:<9}{RESET} {b} {s}" for n, b, s in rows]
+        lines.append(f"{DIM}time: {elapsed:5.1f} s{RESET}")
+        sys.stdout.write("\033[4F" + "".join(l + "\033[K\n" for l in lines))
+        sys.stdout.flush()
 
     try:
-        while True:
-            lines = [
-                line("Python", YELLOW, state["rows"] / oh),
-                line("C", CYAN, 1.0 if state["finish"]["C"] else 0.0),
-                line("Assembly", GREEN, 1.0 if state["finish"]["Assembly"] else 0.0),
-                f"{DIM}time: {time.perf_counter() - t0:5.1f} s{RESET}",
-            ]
-            sys.stdout.write("\033[4F" + "".join(l + "\033[K\n" for l in lines))
-            sys.stdout.flush()
-            if state["done"]:
-                break
-            time.sleep(0.1)
+        state = run_race(size, draw)
     except KeyboardInterrupt:
         sys.stdout.write(SHOW_CURSOR + "\nRace stopped.\n")
         return
     sys.stdout.write(SHOW_CURSOR)
-
-    for t in threads:
-        t.join()
-    fin, count = state["finish"], state["count"]
-    ok = all(state["outputs"][n] == state["python"] for n in ("C", "Assembly"))
-    print(f"\n{BOLD}One image: Python {fin['Python']:.2f} s, C {fin['C']:.3f} s, "
-          f"assembly {fin['Assembly']:.3f} s.{RESET}")
-    print(f"While Python did 1 image, C did {count['C']} and assembly did "
-          f"{count['Assembly']}.")
-    print((GREEN + "All three versions produced the same output."
-           if ok else RED + "MISMATCH between versions!") + RESET)
+    first_line, second, check = race_summary(state)
+    print(f"\n{BOLD}{first_line}{RESET}\n{second}")
+    print((GREEN if state["ok"] else RED) + check + RESET)
     print(f"{DIM}For exact timings, one version at a time, run: "
           f"python3 conv_bench.py{RESET}")
     ask(f"\n{DIM}[Enter] back to menu{RESET} ")
+
+
+# ---------------------------------------------------------------------------
+# Jupyter notebook versions (lab.ipynb). IPython is imported only here, so
+# the console demo keeps working with the standard library alone.
+# ---------------------------------------------------------------------------
+HTML_COLORS = {"Python": "#b58900", "C": "#268bd2", "Assembly": "#2aa198"}
+
+
+def notebook_race(size=DEFAULT_SIZE):
+    """The race inside a notebook cell, redrawn in place as HTML."""
+    from html import escape
+    from IPython.display import HTML, display
+
+    print(RACE_INTRO)
+    print(f"\nPreparing a {size} x {size} image...", flush=True)
+    handle = display(HTML(""), display_id=True)
+
+    def draw(rows, elapsed):
+        lines = [f'<span style="color:{HTML_COLORS[n]};font-weight:bold">{n:<9}</span>'
+                 f" {b} {escape(s)}" for n, b, s in rows]
+        lines.append(f"time: {elapsed:5.1f} s")
+        handle.update(HTML("<pre style='line-height:1.4'>" + "\n".join(lines) + "</pre>"))
+
+    state = run_race(size, draw)
+    print("\n".join(race_summary(state)))
+    return state
+
+
+def notebook_step(y, x, seed=4082):
+    """Show how output pixel (y, x) of a small 6 x 8 example is computed."""
+    from IPython.display import HTML, display
+
+    img, k, out = step_example(seed)
+    oh, ow = len(out), len(out[0])
+    if not (0 <= y < oh and 0 <= x < ow):
+        raise ValueError(f"y must be 0..{oh - 1} and x must be 0..{ow - 1}")
+
+    def table(grid, highlight):
+        cells = []
+        for r, row in enumerate(grid):
+            tds = "".join(
+                f'<td style="padding:2px 8px;text-align:right;'
+                f'{"background:#ffd54f;color:#000;font-weight:bold" if highlight(r, c) else ""}">'
+                f"{v}</td>" for c, v in enumerate(row))
+            cells.append(f"<tr>{tds}</tr>")
+        return ('<table style="border-collapse:collapse;font-family:monospace;'
+                'display:inline-table;margin-right:32px">' + "".join(cells) + "</table>")
+
+    terms = " + ".join(f"{img[y + ky][x + kx]}·" + (f"({c})" if (c := k[ky][kx]) < 0 else f"{c}")
+                       for ky in range(KSIZE) for kx in range(KSIZE))
+    display(HTML(
+        "<div><b>Input image</b> (the 3 x 3 window under the kernel is yellow)"
+        "<br>" + table(img, lambda r, c: y <= r < y + KSIZE and x <= c < x + KSIZE)
+        + table(k, lambda r, c: False) + "<b>Kernel</b></div>"
+        f"<p style='font-family:monospace'>out[{y}][{x}] = {terms}<br>"
+        f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= <b>{out[y][x]}</b></p>"
+        "<b>Output image</b> (pixel (y, x) is yellow)<br>"
+        + table(out, lambda r, c: (r, c) == (y, x))))
+
+
+def step_example(seed):
+    """A small deterministic example: 6 x 8 image, 3 x 3 kernel, its output."""
+    rng = random.Random(seed)
+    h, w = 6, 8
+    img = [[rng.randrange(10) for _ in range(w)] for _ in range(h)]
+    k = [[rng.randrange(-1, 3) for _ in range(KSIZE)] for _ in range(KSIZE)]
+    out, _ = run_python(img, k)
+    ow = w - 2
+    return img, k, [list(out[r * ow:(r + 1) * ow]) for r in range(h - 2)]
 
 
 # ---------------------------------------------------------------------------
@@ -218,15 +313,18 @@ def main():
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("mode", nargs="?", choices=["step", "race"],
                    help="go straight to one mode instead of the menu")
-    p.add_argument("--size", type=int, default=2048,
-                   help="image size for the race (default 2048)")
+    p.add_argument("--size", type=int, default=DEFAULT_SIZE,
+                   help=f"image size for the race (default {DEFAULT_SIZE})")
     args = p.parse_args()
 
     if platform.machine() != "aarch64":
         sys.exit(f"error: this lab needs a 64-bit ARM system (aarch64), "
                  f"this one is {platform.machine()}. Check 'uname -m'.")
-    conv_c = load("libconv_c.so", "conv_c")
-    conv_asm = load("libconv_asm.so", "conv_asm")
+    try:
+        load("libconv_c.so", "conv_c")
+        load("libconv_asm.so", "conv_asm_v4")
+    except RuntimeError as err:
+        sys.exit(f"error: {err}")
     modes = {"1": "step", "2": "race"}
 
     choice = args.mode
@@ -243,7 +341,7 @@ def main():
         if choice == "step":
             step_mode()
         elif choice == "race":
-            race_mode(conv_c, conv_asm, args.size)
+            race_mode(args.size)
         if args.mode:
             break
     print(SHOW_CURSOR, end="")
