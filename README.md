@@ -94,3 +94,16 @@ src/conv.c        C version
 src/conv_asm.S    ARM64 assembly version, commented line by line
 Makefile          builds build/libconv_c.so and build/libconv_asm.so
 ```
+
+## Results on a Raspberry Pi 5
+
+Raspberry Pi 5 Model B Rev 1.1, Python 3.13.5, 2048 × 2048 image
+(37.7 M multiply-adds), `python3 conv_bench.py`:
+
+| Version | Time (ms) | vs Python | Check |
+| --- | ---: | ---: | --- |
+| Python | 7162.23 | 1.0x | OK |
+| C (gcc -O2) | 60.19 | 119.0x | OK |
+| Assembly (NEON) | 8.00 | 895.5x | OK |
+
+C and assembly: median of 5 runs.
