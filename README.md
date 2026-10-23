@@ -86,6 +86,23 @@ In the notebook, `notebook_image()` also shows the input image of the
 benchmark (a corner of it, and a zoom with the pixel values), the kernel and
 the same corner of the output.
 
+## Using the camera
+
+With a Raspberry Pi camera connected, `take_photo()` (in `conv_demo.py`)
+takes a 2592 × 1944 grayscale photo with `rpicam-still` and saves it as
+`photo.pgm`. The notebook then shows the photo next to its edges (an
+edge-detection kernel), and the race runs on the photo. The benchmark keeps
+the random image by default, so that all students measure the same work, but
+it can also use the photo:
+
+```sh
+python3 conv_bench.py --image photo.pgm
+python3 conv_demo.py race --image photo.pgm
+```
+
+Photos are not committed (`.gitignore`). Without a camera, everything falls
+back to the random image.
+
 ## Fair timings
 
 - Close other programs and let the board cool between runs.
@@ -97,7 +114,7 @@ the same corner of the output.
 
 ```
 lab.ipynb           the lab: explanations, code cells and questions
-docs/SETUP.md       setup guide for students, from a new Raspberry Pi
+docs/SETUP.md       setup guide for students, from a new Raspberry Pi (and the camera)
 conv_bench.py       Python version, runner and timing table
 conv_demo.py        console demo, and the notebook's step-by-step, image and race
 src/conv.c          C versions: column order and row order

@@ -9,6 +9,7 @@ the Python output, and the time of each version is printed in one table.
     python3 conv_bench.py --skip-python   # skip Python, compare against C v1
     python3 conv_bench.py --size 512 512  # smaller image, faster
     python3 conv_bench.py --test          # correctness test on many sizes
+    python3 conv_bench.py --image photo.pgm   # a camera photo, edge detection
 
 Build the libraries first with "make". Runs on a 64-bit Raspberry Pi
 (uname -m must print aarch64). Only the Python standard library is used.
@@ -120,6 +121,56 @@ def make_data(h, w, seed, rows=None):
     return img, k
 
 
+# A kernel with a visible meaning, used for photos: it detects edges. On a
+# flat area the 9 products cancel out (8 * centre - 8 neighbours = 0); where
+# the brightness changes, the result is large.
+EDGE_KERNEL = [[-1, -1, -1],
+               [-1,  8, -1],
+               [-1, -1, -1]]
+
+
+def read_pgm(path):
+    """Read a binary grayscale PGM file (P5, 8-bit) into a list of rows."""
+    with open(path, "rb") as f:
+        data = f.read()
+    fields, pos = [], 0
+    while len(fields) < 4:                     # magic, width, height, maxval
+        while data[pos:pos + 1].isspace():
+            pos += 1
+        if data[pos:pos + 1] == b"#":          # skip a comment line
+            pos = data.index(b"\n", pos) + 1
+            continue
+        end = pos
+        while not data[end:end + 1].isspace():
+            end += 1
+        fields.append(data[pos:end])
+        pos = end
+    if fields[0] != b"P5" or int(fields[3]) > 255:
+        raise ValueError(f"{path}: not an 8-bit binary PGM (P5) file")
+    w, h = int(fields[1]), int(fields[2])
+    pixels = data[pos + 1:pos + 1 + w * h]
+    return [list(pixels[r * w:(r + 1) * w]) for r in range(h)]
+
+
+def write_pgm(path, rows):
+    """Write a list of rows of 0..255 values as a binary grayscale PGM file."""
+    h, w = len(rows), len(rows[0])
+    with open(path, "wb") as f:
+        f.write(f"P5\n{w} {h}\n255\n".encode())
+        for row in rows:
+            f.write(bytes(row))
+
+
+def load_image(image=None, size=DEFAULT_SIZE, seed=2026):
+    """(image, kernel, description): a PGM photo with the edge kernel, or,
+    when image is None, the size x size random image with its random kernel."""
+    if image:
+        img = read_pgm(image)
+        return img, EDGE_KERNEL, f"photo {os.path.basename(image)}, edge-detection kernel"
+    img, k = make_data(size, size, seed)
+    return img, k, "random numbers"
+
+
 def board_name():
     try:
         with open("/proc/device-tree/model") as f:
@@ -139,13 +190,13 @@ def load_versions():
     return loaded
 
 
-def benchmark(h, w, reps, seed, skip_python):
+def benchmark(img, k, description, reps, skip_python):
     versions = load_versions()
+    h, w = len(img), len(img[0])
     macs = (h - 2) * (w - 2) * KSIZE * KSIZE
     print(f"Board : {board_name()} ({platform.machine()}), Python {platform.python_version()}")
-    print(f"Image : {h} x {w}, kernel 3 x 3, {macs / 1e6:.1f} M multiply-adds")
-    print("Preparing the data...", flush=True)
-    img, k = make_data(h, w, seed)
+    print(f"Image : {h} x {w} ({description}), kernel 3 x 3, "
+          f"{macs / 1e6:.1f} M multiply-adds")
     flat_img, flat_k = flatten(img, k)
 
     rows = []                                  # (name, seconds, status)
@@ -219,6 +270,9 @@ def main():
     p.add_argument("--reps", type=int, default=5,
                    help="runs of each C/assembly version, the median is shown (default 5)")
     p.add_argument("--seed", type=int, default=2026, help="random seed for the data")
+    p.add_argument("--image", metavar="FILE.pgm",
+                   help="use this grayscale photo (PGM) with an edge-detection kernel "
+                        "instead of the random image")
     p.add_argument("--skip-python", action="store_true",
                    help="do not run Python; check and compare against C v1 instead")
     p.add_argument("--test", action="store_true", help="correctness test on many sizes")
@@ -237,7 +291,18 @@ def main():
     if args.test:
         ok = self_test()
     else:
-        ok = benchmark(*args.size, args.reps, args.seed, args.skip_python)
+        print("Preparing the data...", flush=True)
+        if args.image:
+            try:
+                img, k, description = load_image(args.image)
+            except (OSError, ValueError) as err:
+                sys.exit(f"error: {err}")
+        else:
+            img, k = make_data(*args.size, args.seed)
+            description = "random numbers"
+        if min(len(img), len(img[0])) < KSIZE:
+            sys.exit("error: the image must be at least 3 x 3")
+        ok = benchmark(img, k, description, args.reps, args.skip_python)
     sys.exit(0 if ok else 1)
 
 

@@ -13,6 +13,7 @@ do not need to type them.
 - A Raspberry Pi 5 (a Pi 4, 3 or Zero 2 W also works, only slower).
 - A microSD card of 16 GB or more, the power supply, and a heatsink or fan.
 - An internet connection (Wi-Fi or cable).
+- Optional: a Raspberry Pi camera with a Pi 5 camera cable.
 - A computer with [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
   to prepare the SD card, if the Pi does not have a system yet.
 
@@ -100,7 +101,35 @@ Why the extra options:
 If the download still fails, run the same command again: the packages that
 already downloaded are kept.
 
-## Step 6. Open the lab notebook
+## Step 6 (optional). Connect the camera
+
+The lab can use a photo from the Raspberry Pi camera. Without a camera
+everything still works, with a random image instead.
+
+1. **Shut the Pi down and unplug it** (`sudo shutdown now`). The camera is
+   only detected when the Pi starts: connecting it while it is on does not
+   work.
+2. On a Raspberry Pi 5 the camera goes into one of the two small connectors
+   marked **CAM/DISP 0** or **CAM/DISP 1**. The Pi 5 connectors are smaller
+   than on older models, so the camera needs a **Pi 5 camera cable** (one end
+   narrower than the other).
+3. Lift the latch of the connector, push the cable in all the way with its
+   metal contacts facing the metal contacts of the connector, and press the
+   latch down. Do the same at the camera end.
+4. Power the Pi on and check that it sees the camera:
+
+```sh
+rpicam-hello --list-cameras
+```
+
+It must list a camera, for example `0 : ov5647 [2592x1944 ...]`. Take a
+test photo and open `~/test.jpg` in the file manager:
+
+```sh
+rpicam-still -n -o ~/test.jpg
+```
+
+## Step 7. Open the lab notebook
 
 ```sh
 cd ~/Assembly-with-Raspberry-PI-5
@@ -111,7 +140,7 @@ The notebook opens in the Pi's browser. Leave the terminal open while you
 work: it is running Jupyter. To stop Jupyter at the end, save the notebook,
 go back to the terminal and press **Ctrl + C**, then `y`.
 
-From now on, every time you want to work on the lab you only repeat Step 6.
+From now on, every time you want to work on the lab you only repeat Step 7.
 
 ### Working from another computer (optional)
 
@@ -131,11 +160,13 @@ be on the same network.
 
 | Problem | What to do |
 | --- | --- |
+| `rpicam-hello --list-cameras` says `No cameras available!` | Shut the Pi down, unplug it, check that the cable is the Pi 5 type and fully inserted at both ends with the latches closed, and power it on again (Step 6). |
+| The notebook says the camera did not take the photo | Close any other program using the camera, run `rpicam-hello --list-cameras` in a terminal, and run the photo cell again. |
 | `uname -m` prints `armv7l` or `armv6l` | The system is 32-bit. Install Raspberry Pi OS (64-bit), Step 1. |
 | `git clone` says `Password authentication is not supported` | The repository is private and GitHub needs a token, not a password. Ask your instructor for access. |
 | `pip install` fails with `incomplete-download` | Slow connection. Run the Step 5 command again; it continues where it stopped. |
 | `pip` says `no such option: --resume-retries` | Old `pip`. Run `~/jupyter-env/bin/pip install --upgrade pip` and repeat Step 5. |
-| `jupyter: No such file or directory` | Jupyter is not installed yet, or you typed `jupyter` alone. Use the full path `~/jupyter-env/bin/jupyter` (Step 6). |
+| `jupyter: No such file or directory` | Jupyter is not installed yet, or you typed `jupyter` alone. Use the full path `~/jupyter-env/bin/jupyter` (Step 7). |
 | `make` shows `Error` in `src/conv_student.S` | A mistake in your assembly (Part 5 of the lab). Read the line number in the message, fix it and run `make` again. |
 | A row of the table says `NOT BUILT` | That library did not build. Run `make` and read its error. |
 | A row of the table says `MISMATCH` | That version computes a wrong result. In Part 5, check the order of the `madd` operands. |
@@ -156,6 +187,9 @@ make
 python3 conv_bench.py --test                     # must end in "all OK"
 python3 -m venv ~/jupyter-env
 ~/jupyter-env/bin/pip install --index-url https://pypi.org/simple --resume-retries 5 --timeout 60 notebook
+
+# optional: check the camera (connect it with the Pi off)
+rpicam-hello --list-cameras
 
 # every time you work on the lab
 cd ~/Assembly-with-Raspberry-PI-5
