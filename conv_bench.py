@@ -2,14 +2,14 @@
 """
 conv_bench.py - the same 2D convolution in Python, C and ARM64 assembly.
 
-Every version gets the same image and kernel. Each output is checked against
-the Python output, and the time of each version is printed in one table.
+Every version processes the same photo from the Raspberry Pi camera with an
+edge-detection kernel. Each output is checked against the Python output, and
+the time of each version is printed in one table.
 
-    python3 conv_bench.py                 # 2400 x 2400 image, all versions
+    python3 conv_demo.py photo            # take the photo first (photo.pgm)
+    python3 conv_bench.py                 # all versions on photo.pgm
     python3 conv_bench.py --skip-python   # skip Python, compare against C v1
-    python3 conv_bench.py --size 512 512  # smaller image, faster
     python3 conv_bench.py --test          # correctness test on many sizes
-    python3 conv_bench.py --image photo.pgm   # a camera photo, edge detection
 
 Build the libraries first with "make". Runs on a 64-bit Raspberry Pi
 (uname -m must print aarch64). Only the Python standard library is used.
@@ -27,7 +27,8 @@ from array import array
 HERE = os.path.dirname(os.path.abspath(__file__))
 BUILD = os.path.join(HERE, "build")
 KSIZE = 3
-DEFAULT_SIZE = 2400          # Python takes about 10 s on a Raspberry Pi 5
+PHOTO = "photo.pgm"           # the camera photo every part of the lab uses
+PHOTO_SIZE = (2592, 1944)     # width x height: Python takes about 9 s on a Pi 5
 
 
 # ---------------------------------------------------------------------------
@@ -109,19 +110,15 @@ def run_python(img, k):
 
 
 # ---------------------------------------------------------------------------
-def make_data(h, w, seed, rows=None):
-    """Deterministic test data: pixels 0..255, kernel coefficients -4..4.
-
-    With rows=N only the first N rows of the image are generated (they are
-    identical to the first N rows of the full image), for previews.
-    """
+def make_data(h, w, seed):
+    """Random test data for --test: pixels 0..255, kernel coefficients -4..4."""
     rng = random.Random(seed)
     k = [[rng.randrange(-4, 5) for _ in range(KSIZE)] for _ in range(KSIZE)]
-    img = [[rng.randrange(256) for _ in range(w)] for _ in range(h if rows is None else rows)]
+    img = [[rng.randrange(256) for _ in range(w)] for _ in range(h)]
     return img, k
 
 
-# A kernel with a visible meaning, used for photos: it detects edges. On a
+# The kernel of the lab: it detects edges. On a
 # flat area the 9 products cancel out (8 * centre - 8 neighbours = 0); where
 # the brightness changes, the result is large.
 EDGE_KERNEL = [[-1, -1, -1],
@@ -161,14 +158,15 @@ def write_pgm(path, rows):
             f.write(bytes(row))
 
 
-def load_image(image=None, size=DEFAULT_SIZE, seed=2026):
-    """(image, kernel, description): a PGM photo with the edge kernel, or,
-    when image is None, the size x size random image with its random kernel."""
-    if image:
-        img = read_pgm(image)
-        return img, EDGE_KERNEL, f"photo {os.path.basename(image)}, edge-detection kernel"
-    img, k = make_data(size, size, seed)
-    return img, k, "random numbers"
+NO_PHOTO = ("{} not found: take the photo with the camera first "
+            "(Part 1 of lab.ipynb, or: python3 conv_demo.py photo).")
+
+
+def load_photo(image=PHOTO):
+    """The camera photo as a list of rows, or FileNotFoundError if missing."""
+    if not os.path.exists(image):
+        raise FileNotFoundError(NO_PHOTO.format(image))
+    return read_pgm(image)
 
 
 def board_name():
@@ -191,11 +189,12 @@ def load_versions():
 
 
 def benchmark(img, k, description, reps, skip_python):
+    """Time every version on img with kernel k and print the table."""
     versions = load_versions()
     h, w = len(img), len(img[0])
     macs = (h - 2) * (w - 2) * KSIZE * KSIZE
     print(f"Board : {board_name()} ({platform.machine()}), Python {platform.python_version()}")
-    print(f"Image : {h} x {w} ({description}), kernel 3 x 3, "
+    print(f"Image : {w} x {h} ({description}), kernel 3 x 3, "
           f"{macs / 1e6:.1f} M multiply-adds")
     flat_img, flat_k = flatten(img, k)
 
@@ -205,7 +204,7 @@ def benchmark(img, k, description, reps, skip_python):
         ref, _ = run_native(versions[0][1], flat_img, flat_k, h, w)
     else:
         base_name = "Python"
-        print("Running Python (the slow one, about 10 seconds)...", flush=True)
+        print("Running Python (the slow one, about 9 seconds)...", flush=True)
         ref, t_py = run_python(img, k)
         rows.append(("Python", t_py, "OK"))
     print("Running C and assembly...", flush=True)
@@ -265,14 +264,10 @@ def self_test():
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--size", nargs=2, type=int, default=[DEFAULT_SIZE] * 2, metavar=("H", "W"),
-                   help=f"image height and width (default {DEFAULT_SIZE} {DEFAULT_SIZE})")
     p.add_argument("--reps", type=int, default=5,
                    help="runs of each C/assembly version, the median is shown (default 5)")
-    p.add_argument("--seed", type=int, default=2026, help="random seed for the data")
-    p.add_argument("--image", metavar="FILE.pgm",
-                   help="use this grayscale photo (PGM) with an edge-detection kernel "
-                        "instead of the random image")
+    p.add_argument("--image", metavar="FILE.pgm", default=PHOTO,
+                   help=f"grayscale photo to process (default {PHOTO})")
     p.add_argument("--skip-python", action="store_true",
                    help="do not run Python; check and compare against C v1 instead")
     p.add_argument("--test", action="store_true", help="correctness test on many sizes")
@@ -281,8 +276,6 @@ def main():
     if platform.machine() != "aarch64":
         sys.exit(f"error: this lab needs a 64-bit ARM system (aarch64), "
                  f"this one is {platform.machine()}. Check 'uname -m'.")
-    if min(args.size) < KSIZE:
-        sys.exit("error: the image must be at least 3 x 3")
     try:
         load(*VERSIONS[0][1:])                 # C is the reference: it must exist
     except RuntimeError as err:
@@ -291,18 +284,14 @@ def main():
     if args.test:
         ok = self_test()
     else:
-        print("Preparing the data...", flush=True)
-        if args.image:
-            try:
-                img, k, description = load_image(args.image)
-            except (OSError, ValueError) as err:
-                sys.exit(f"error: {err}")
-        else:
-            img, k = make_data(*args.size, args.seed)
-            description = "random numbers"
+        try:
+            img = load_photo(args.image)
+        except (OSError, ValueError) as err:
+            sys.exit(f"error: {err}")
         if min(len(img), len(img[0])) < KSIZE:
             sys.exit("error: the image must be at least 3 x 3")
-        ok = benchmark(img, k, description, args.reps, args.skip_python)
+        description = f"photo {os.path.basename(args.image)}, edge-detection kernel"
+        ok = benchmark(img, EDGE_KERNEL, description, args.reps, args.skip_python)
     sys.exit(0 if ok else 1)
 
 

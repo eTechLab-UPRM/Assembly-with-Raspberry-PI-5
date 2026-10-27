@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-conv_demo.py - see the 2D convolution in the console.
+conv_demo.py - see the 2D convolution, in the console or in lab.ipynb.
 
     python3 conv_demo.py            # menu
     python3 conv_demo.py step       # the kernel sliding over a small image
-    python3 conv_demo.py race       # Python, C and assembly running at once
+    python3 conv_demo.py photo      # take the camera photo (photo.pgm)
+    python3 conv_demo.py race       # Python vs. every C and assembly version
 
 Build the libraries first with "make". The console demo uses only the Python
-standard library; lab.ipynb also uses notebook_step() and notebook_race().
+standard library; lab.ipynb also uses notebook_step(), take_photo(),
+notebook_image() and notebook_race().
 """
 import argparse
+import os
 import platform
 import random
 import sys
@@ -17,9 +20,8 @@ import threading
 import time
 from array import array
 
-from conv_bench import (DEFAULT_SIZE, EDGE_KERNEL, KSIZE, as_c_array, flatten, load,
-                         load_image, load_versions, make_data, read_pgm, run_native,
-                         run_python, write_pgm)
+from conv_bench import (EDGE_KERNEL, KSIZE, NO_PHOTO, PHOTO, PHOTO_SIZE, as_c_array, flatten,
+                        load, load_photo, load_versions, run_native, run_python, write_pgm)
 
 # ANSI escape codes for colors and cursor movement.
 RESET, BOLD, DIM = "\033[0m", "\033[1m", "\033[2m"
@@ -27,6 +29,15 @@ YELLOW, GREEN, CYAN, RED = "\033[33m", "\033[32m", "\033[36m", "\033[31m"
 HIGHLIGHT = "\033[30;43m"          # black text on a yellow background
 CLEAR = "\033[H\033[2J"           # clear the screen
 HIDE_CURSOR, SHOW_CURSOR = "\033[?25l", "\033[?25h"
+
+
+class LabError(Exception):
+    """An error with a message for the student. In Jupyter it shows only the
+    message, without the Python traceback."""
+
+    def _render_traceback_(self):
+        return [RED + BOLD + "ERROR" + RESET] + [RED + line + RESET
+                                                 for line in str(self).splitlines()]
 
 
 def ask(prompt):
@@ -92,15 +103,88 @@ def step_mode():
                 return
             auto = key == "a"
 
-    macs = (DEFAULT_SIZE - 2) ** 2 * 9
+    pw, ph = PHOTO_SIZE
+    macs = (pw - 2) * (ph - 2) * 9
     print(f"\nThis {h} x {w} image needed {oh} x {ow} x 9 = {oh * ow * 9} "
-          f"multiply-adds.\nThe {DEFAULT_SIZE} x {DEFAULT_SIZE} image of the race needs "
-          f"{macs:,}: that is why the language matters.")
+          f"multiply-adds.\nThe {pw} x {ph} camera photo needs {macs:,}: "
+          f"that is why the language matters.")
     ask(f"\n{DIM}[Enter] back to menu{RESET} ")
 
 
 # ---------------------------------------------------------------------------
-# 2. Race: Python and every C/assembly version run at the same time.
+# 2. The camera photo: every part of the lab uses it.
+# ---------------------------------------------------------------------------
+NO_CAMERA = """No camera detected. Check the camera connection:
+  1. Shut the Raspberry Pi down (sudo shutdown now) and unplug the power.
+  2. Check the cable at BOTH ends: it must be a Raspberry Pi 5 camera cable,
+     pushed all the way into CAM/DISP 0 or CAM/DISP 1, with the latches closed.
+  3. Plug the power back in. The camera must be connected BEFORE the Pi is
+     powered on: it is not detected if it is connected while the Pi is on.
+  4. In a terminal, "rpicam-hello --list-cameras" must list the camera.
+Then run this again."""
+
+
+def take_photo(path=PHOTO, seconds=3):
+    """Take the grayscale photo of the lab with the Raspberry Pi camera.
+
+    A preview window shows the camera for `seconds` seconds, then the photo is
+    saved as a PGM file of PHOTO_SIZE pixels. Raises LabError, with what to
+    check, if there is no camera.
+    """
+    import shutil
+    import subprocess
+
+    if not shutil.which("rpicam-still"):
+        raise LabError("rpicam-still not found: the camera software is missing.\n"
+                       "Install it with: sudo apt install -y rpicam-apps")
+    width, height = PHOTO_SIZE
+    raw = path + ".yuv"
+    cmd = ["rpicam-still", "-t", str(seconds * 1000), "--encoding", "yuv420",
+           "--width", str(width), "--height", str(height), "-o", raw]
+    print(f"Look at the camera: taking the photo in {seconds} seconds...", flush=True)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0 and "no cameras" not in result.stderr.lower():
+        # Probably no screen for the preview (e.g. over SSH): try without it.
+        result = subprocess.run(cmd + ["-n"], capture_output=True, text=True)
+    if result.returncode != 0 or not os.path.exists(raw):
+        if "no cameras" in result.stderr.lower():
+            raise LabError(NO_CAMERA)
+        last = (result.stderr.strip().splitlines() or ["unknown error"])[-1]
+        raise LabError(f"The camera did not take the photo: {last}\n\n{NO_CAMERA}")
+
+    # YUV420: first the brightness (Y) of every pixel, which is exactly the
+    # grayscale image, then the colour planes, which we do not need. Each row
+    # of Y can be padded to `stride` bytes.
+    with open(raw, "rb") as fh:
+        data = fh.read()
+    os.remove(raw)
+    stride = len(data) * 2 // (3 * height)
+    rows = [list(data[r * stride:r * stride + width]) for r in range(height)]
+    write_pgm(path, rows)
+    print(f"Saved {path}: {width} x {height} pixels, grayscale.")
+    return path
+
+
+def photo_mode():
+    """Console: take the photo, or explain what to check."""
+    print(CLEAR + BOLD + "PHOTO" + RESET + "\n")
+    try:
+        take_photo()
+    except LabError as err:
+        print("\n" + RED + str(err) + RESET)
+    ask(f"\n{DIM}[Enter] back to menu{RESET} ")
+
+
+def require_photo(image):
+    """The photo as rows, or LabError telling the student to take it."""
+    try:
+        return load_photo(image)
+    except FileNotFoundError:
+        raise LabError(NO_PHOTO.format(image)) from None
+
+
+# ---------------------------------------------------------------------------
+# 3. Race: Python against every C and assembly version, on the photo.
 # ---------------------------------------------------------------------------
 BAR_WIDTH = 30
 SCALE_STEPS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000]
@@ -116,29 +200,49 @@ def short_name(name):
     return " ".join(name.split()[:2])
 
 
-def run_race(size, draw, interval=0.1, image=None):
-    """Run the race and call draw(panel1, panel2, per_char, elapsed) repeatedly.
+def pin_to_core(core):
+    """Run the calling thread only on this CPU core (Linux). Elsewhere, or if
+    the core does not exist, the thread simply runs unpinned."""
+    try:
+        os.sched_setaffinity(0, {core})
+    except (AttributeError, OSError):
+        pass
 
-    panel1: [(name, fraction, status)] progress of ONE image for every racer.
-    panel2: [(name, fraction, count)] images each C/assembly version has
-            finished while Python works; a full bar is per_char * BAR_WIDTH
-            images, so each bar character is worth per_char images.
-    Returns the final state: finish times, image counts, outputs check.
+
+def run_race(image, draw, interval=0.1):
+    """Run the race and call draw(panel1, panel2, full_bar, elapsed) repeatedly.
+
+    So that no version slows another one down:
+      - Python runs on a CPU core of its own;
+      - the C and assembly versions run one after another on another core,
+        never at the same time, each on one copy of the photo.
+
+    panel1: [(name, fraction, status)] progress of the photo for every version.
+    panel2: [(name, fraction, count)] how many photos each C/assembly version
+            could have processed in the time Python has used so far:
+            Python's time / that version's time. It is computed from the
+            measured times, not run. A full bar is full_bar photos.
+    Returns the final state: times, counts and whether all outputs match.
     """
     natives = [(short_name(n), f) for n, f, _ in load_versions() if f is not None]
-    img, k, _ = load_image(image, size)        # a photo, or the random image
+    img = require_photo(image)
+    k = EDGE_KERNEL
     h, w = len(img), len(img[0])
     flat_img, flat_k = flatten(img, k)
     oh, ow = h - (KSIZE - 1), w - (KSIZE - 1)
     names = ["Python"] + [n for n, _ in natives]
+    try:
+        cores = sorted(os.sched_getaffinity(0))
+    except AttributeError:
+        cores = [0]
+    python_core, native_core = cores[-1], cores[-2] if len(cores) > 1 else cores[-1]
 
-    # finish: seconds each racer needed for its first image (None = running).
-    # count: images each C/assembly version has finished so far.
-    state = {"rows": 0, "done": False, "python": None, "outputs": {},
-             "finish": dict.fromkeys(names), "count": {n: 0 for n, _ in natives}}
+    # finish: seconds each version needed for the photo (None = not done yet).
+    state = {"rows": 0, "t0": 0.0, "python": None, "outputs": {},
+             "finish": dict.fromkeys(names), "running": None}
 
     def python_worker():
-        t0 = time.perf_counter()
+        pin_to_core(python_core)
         out = [[0] * ow for _ in range(oh)]
         for y in range(oh):                    # same loops as conv_bench.py
             for x in range(ow):
@@ -148,76 +252,87 @@ def run_race(size, draw, interval=0.1, image=None):
                         acc += img[y + ky][x + kx] * k[ky][kx]
                 out[y][x] = acc
             state["rows"] = y + 1
-        state["finish"]["Python"] = time.perf_counter() - t0
+        state["finish"]["Python"] = time.perf_counter() - state["t0"]
         state["python"] = array("i", [v for row in out for v in row])
-        state["done"] = True
 
-    def native_worker(name, func):
-        out = array("i", [0]) * (oh * ow)
-        c_img, c_out, c_k = as_c_array(flat_img), as_c_array(out), as_c_array(flat_k)
-        t0 = time.perf_counter()
-        func(c_img, c_out, c_k, h, w)         # the race: one whole image
-        state["finish"][name] = time.perf_counter() - t0
-        state["count"][name] = 1
-        while not state["done"]:              # then keep going until Python ends
+    def native_worker():
+        pin_to_core(native_core)
+        for name, func in natives:             # one at a time
+            state["running"] = name
+            out = array("i", [0]) * (oh * ow)
+            c_img, c_out, c_k = as_c_array(flat_img), as_c_array(out), as_c_array(flat_k)
+            t0 = time.perf_counter()
             func(c_img, c_out, c_k, h, w)
-            state["count"][name] += 1
-        state["outputs"][name] = out
+            state["finish"][name] = time.perf_counter() - t0
+            state["outputs"][name] = out
+        state["running"] = None
 
     def panels():
-        panel1 = []
+        finish = state["finish"]
+        python_time = finish["Python"] or time.perf_counter() - state["t0"]
+        panel1, counts = [], []
         for name in names:
-            finish = state["finish"][name]
             if name == "Python":
                 frac = state["rows"] / oh
             else:
-                frac = 1.0 if finish is not None else 0.0
-            status = f"{frac * 100:5.1f}%" if finish is None else f"done in {finish:.3f} s"
+                frac = 1.0 if finish[name] is not None else 0.0
+            if finish[name] is not None:
+                status = f"done in {finish[name]:.3f} s"
+            elif name == state["running"]:
+                status = "running..."
+            elif name == "Python":
+                status = f"{frac * 100:5.1f}%"
+            else:
+                status = "waiting"
             panel1.append((name, frac, status))
-        most = max(state["count"].values(), default=0)
+            if name != "Python":
+                counts.append((name, int(python_time / finish[name]) if finish[name] else 0))
+        most = max((c for _, c in counts), default=0)
         per_char = next((s for s in SCALE_STEPS if most <= s * BAR_WIDTH), SCALE_STEPS[-1])
-        panel2 = [(n, c / (per_char * BAR_WIDTH), c) for n, c in state["count"].items()]
-        return panel1, panel2, per_char
+        full = per_char * BAR_WIDTH
+        return panel1, [(n, c / full, c) for n, c in counts], full
 
-    threads = [threading.Thread(target=python_worker, daemon=True)]
-    threads += [threading.Thread(target=native_worker, args=nf, daemon=True) for nf in natives]
-    # C/assembly threads need Python's lock for a moment after each image;
-    # a short switch interval keeps them from waiting behind the Python loop.
+    threads = [threading.Thread(target=python_worker, daemon=True),
+               threading.Thread(target=native_worker, daemon=True)]
+    # The C/assembly thread needs Python's lock for a moment after each
+    # version; a short switch interval keeps it from waiting behind the
+    # Python loop, so its measured times stay accurate.
     old_interval = sys.getswitchinterval()
     sys.setswitchinterval(0.0005)
     try:
-        t0 = time.perf_counter()
+        state["t0"] = time.perf_counter()
         for t in threads:
             t.start()
         while True:
-            done = state["done"]                  # read before drawing: the last
-            draw(*panels(), time.perf_counter() - t0)  # frame then shows 100 %
+            done = not any(t.is_alive() for t in threads)  # read before drawing:
+            draw(*panels(), time.perf_counter() - state["t0"])  # last frame = 100 %
             if done:
                 break
             time.sleep(interval)
-        for t in threads:
-            t.join()
     finally:
         sys.setswitchinterval(old_interval)
     state["ok"] = all(state["outputs"][n] == state["python"] for n, _ in natives)
+    state["counts"] = {n: int(state["finish"]["Python"] / state["finish"][n])
+                       for n, _ in natives}
     return state
 
 
 RACE_INTRO = (
-    "Python and every C and assembly version start the same image at the same\n"
-    "time. Panel 1 is the progress of that one image. Panel 2 counts how many\n"
-    "times each C and assembly version finishes the image while Python works\n"
-    "on its first one. The 7 versions share the 4 CPU cores of the Pi, so\n"
-    "compare them with each other; exact times come from conv_bench.py.")
-PANEL2_TITLE = "Images finished while Python works on one (each █ = {} images)"
-PANEL2_TITLE_HTML = "Images finished while Python works on one (full bar = {} images)"
+    "Python starts the photo on a CPU core of its own. On another core, the C\n"
+    "and assembly versions process the same photo one after another, never at\n"
+    "the same time, so no version slows another one down. Panel 2 shows how\n"
+    "many photos each C and assembly version could process in the time Python\n"
+    "has used so far (Python's time / that version's time).")
+PANEL2_TITLE = "Photos each version could process in Python's time (each █ = {} photos)"
+PANEL2_TITLE_HTML = "Photos each version could process in Python's time (full bar = {} photos)"
 
 
 def race_summary(state):
-    fin, count = state["finish"], state["count"]
+    fin, count = state["finish"], state["counts"]
     best = max(count, key=count.get)
-    return ([f"Python needed {fin['Python']:.2f} s for one image. Meanwhile:"]
-            + [f"  {n:<7} finished {c:5d} images" for n, c in count.items()]
+    return ([f"Python needed {fin['Python']:.2f} s for the photo. In that time:"]
+            + [f"  {n:<7} ({fin[n]:.3f} s per photo) could process {c:5d} photos"
+               for n, c in count.items()]
             + [f"Fastest: {best}.",
                "All versions produced the same output." if state["ok"]
                else "MISMATCH between versions!"])
@@ -227,20 +342,19 @@ def race_color(name):
     return YELLOW if name == "Python" else CYAN if name.startswith("C") else GREEN
 
 
-def race_mode(size, image=None):
+def race_mode(image=PHOTO):
     """Console version of the race, drawn with ANSI escape codes."""
-    what = image or f"a {size} x {size} image"
-    print(CLEAR + BOLD + "RACE" + RESET + f"   preparing {what}...", flush=True)
+    print(CLEAR + BOLD + "RACE" + RESET + f"   preparing {image}...", flush=True)
     drawn = [0]                                    # lines drawn by the last frame
 
-    def draw(panel1, panel2, per_char, elapsed):
+    def draw(panel1, panel2, full, elapsed):
         if not drawn[0]:
-            print(CLEAR + BOLD + "RACE" + RESET + f"   {what}, 3 x 3 kernel\n")
+            print(CLEAR + BOLD + "RACE" + RESET + f"   {image}, edge-detection kernel\n")
             print(RACE_INTRO + "\n")
             sys.stdout.write(HIDE_CURSOR)
-        lines = [BOLD + "1. One image" + RESET]
+        lines = [BOLD + "1. One photo" + RESET]
         lines += [f"{race_color(n)}{n:<9}{RESET} {bar(f)} {s}" for n, f, s in panel1]
-        lines += ["", BOLD + "2. " + PANEL2_TITLE.format(per_char) + RESET]
+        lines += ["", BOLD + "2. " + PANEL2_TITLE.format(full // BAR_WIDTH) + RESET]
         lines += [f"{race_color(n)}{n:<9}{RESET} {bar(f)} {c:5d}" for n, f, c in panel2]
         lines += [f"{DIM}time: {elapsed:5.1f} s{RESET}"]
         up = f"\033[{drawn[0]}F" if drawn[0] else ""
@@ -249,7 +363,11 @@ def race_mode(size, image=None):
         drawn[0] = len(lines)
 
     try:
-        state = run_race(size, draw, image=image)
+        state = run_race(image, draw)
+    except LabError as err:
+        print("\n" + RED + str(err) + RESET)
+        ask(f"\n{DIM}[Enter] back to menu{RESET} ")
+        return
     except KeyboardInterrupt:
         sys.stdout.write(SHOW_CURSOR + "\nRace stopped.\n")
         return
@@ -269,38 +387,34 @@ def html_color(name):
     return "#b58900" if name == "Python" else "#268bd2" if name.startswith("C") else "#2aa198"
 
 
-def notebook_race(image=None, size=DEFAULT_SIZE):
-    """The race inside a notebook cell, redrawn in place as HTML.
-
-    image: a photo from take_photo(), or None for the random image.
-    """
+def notebook_race(image=PHOTO):
+    """The race inside a notebook cell, redrawn in place as HTML."""
     from html import escape
     from IPython.display import HTML, display
 
     print(RACE_INTRO)
-    print(f"\nPreparing {image or f'a {size} x {size} image'}...", flush=True)
+    print(f"\nPreparing {image}...", flush=True)
     handle = display(HTML(""), display_id=True)
 
     def row(name, frac, text):
         color = html_color(name)
-        return (f'<tr><td style="color:{color};font-weight:bold;padding:2px 12px 2px 0;text-align:left">'
-                f"{name}</td>"
+        return (f'<tr><td style="color:{color};font-weight:bold;padding:2px 12px 2px 0;'
+                f'text-align:left">{name}</td>'
                 f'<td style="width:300px;padding:2px 0"><div style="background:#ddd;'
                 f'height:14px"><div style="background:{color};height:14px;'
                 f'width:{min(frac, 1) * 100:.1f}%"></div></div></td>'
                 f'<td style="padding:2px 12px;font-family:monospace">{escape(text)}</td></tr>')
 
-    def draw(panel1, panel2, per_char, elapsed):
-        html = ["<b>1. One image</b><table style='border-collapse:collapse'>"]
+    def draw(panel1, panel2, full, elapsed):
+        html = ["<b>1. One photo</b><table style='border-collapse:collapse'>"]
         html += [row(n, f, s) for n, f, s in panel1]
-        html += ["</table><br><b>2. " + escape(PANEL2_TITLE_HTML.format(per_char * BAR_WIDTH))
-                 + "</b>"
+        html += ["</table><br><b>2. " + escape(PANEL2_TITLE_HTML.format(full)) + "</b>"
                  "<table style='border-collapse:collapse'>"]
-        html += [row(n, f, f"{c} images") for n, f, c in panel2]
+        html += [row(n, f, f"{c} photos") for n, f, c in panel2]
         html += [f"</table><p style='font-family:monospace'>time: {elapsed:5.1f} s</p>"]
         handle.update(HTML("".join(html)))
 
-    state = run_race(size, draw, image=image)
+    state = run_race(image, draw)
     print("\n".join(race_summary(state)))
     return state
 
@@ -348,50 +462,16 @@ def html_numbers(rows, title, gray=True):
             + "".join(cells) + "</table></div>")
 
 
-def notebook_image(image=None, size=DEFAULT_SIZE, crop=200, zoom=8):
-    """Show the input image, the kernel and the output image in the notebook.
-
-    image=None: the benchmark's random image (its top-left corner, since the
-    whole image is just noise). image="photo.pgm": a photo from take_photo(),
-    shown whole, with the edge-detection kernel.
-    """
-    from IPython.display import HTML, display
-
-    if image:
-        display(HTML(photo_html(image, zoom)))
-        return
-
-    crop = min(crop, size - (KSIZE - 1))
-    zoom = min(zoom, crop)
-    img, k = make_data(size, size, seed=2026, rows=crop + KSIZE - 1)
-    window = [row[:crop + KSIZE - 1] for row in img]
-    out, _ = run_python(window, k)
-    out = [list(out[r * crop:(r + 1) * crop]) for r in range(crop)]
-    low = min(min(r) for r in out)
-    high = max(max(r) for r in out)
-    out_gray = [[(v - low) * 255 // (high - low or 1) for v in r] for r in out]
-
-    total = size * size
-    display(HTML(
-        f"<p>The full input image is <b>{size} × {size} = {total:,} pixels</b> "
-        f"({total * 4 / 1e6:.0f} MB as 32-bit integers), each a random number from 0 "
-        f"(black) to 255 (white), always the same ones (fixed seed). It looks like TV "
-        f"static because it is random. Below: its top-left {crop} × {crop} corner, "
-        f"drawn twice as large.</p>"
-        + html_picture([r[:crop] for r in window[:crop]], f"Input (top-left {crop} × {crop})")
-        + html_numbers([r[:zoom] for r in window[:zoom]], f"Zoom: top-left {zoom} × {zoom} pixels")
-        + html_numbers(k, "Kernel", gray=False)
-        + html_picture(out_gray, f"Output (same corner, {low} → black, {high} → white)")))
-
-
-def photo_html(image, zoom=8, width=480):
-    """HTML with a photo, a zoom on its centre, the edge kernel and the edges.
+def notebook_image(image=PHOTO, zoom=8, width=480):
+    """Show the photo, a zoom on its centre, the edge kernel and the edges.
 
     The convolution runs on the whole photo with the C version (it takes a
     fraction of a second); both images are then shrunk to `width` pixels to
     fit on the screen.
     """
-    img = read_pgm(image)
+    from IPython.display import HTML, display
+
+    img = require_photo(image)
     h, w = len(img), len(img[0])
     flat_img, flat_k = flatten(img, EDGE_KERNEL)
     out, t = run_native(load("libconv_c.so", "conv_c_rows"), flat_img, flat_k, h, w)
@@ -412,57 +492,17 @@ def photo_html(image, zoom=8, width=480):
 
     cy, cx = h // 2 - zoom // 2, w // 2 - zoom // 2
     centre = [row[cx:cx + zoom] for row in img[cy:cy + zoom]]
-    return (f"<p>Your photo: <b>{w} × {h} = {w * h:,} pixels</b>, each a number from 0 "
-            f"(black) to 255 (white). The edge-detection kernel gives 0 where the "
-            f"brightness does not change, and a large value at edges. The C version "
-            f"(row order) computed all {oh * ow:,} output pixels in {t * 1e3:.0f} ms.</p>"
-            + html_picture(small_in, "Input photo", scale=1)
-            + html_picture(edges, "Output: edges (dark = strong edge)", scale=1)
-            + "<br>"
-            + html_numbers(centre, f"Zoom: {zoom} × {zoom} pixels at the centre")
-            + html_numbers(EDGE_KERNEL, "Edge-detection kernel", gray=False))
-
-
-def take_photo(path="photo.pgm", width=2592, height=1944, seconds=3):
-    """Take a grayscale photo with the Raspberry Pi camera and save it as PGM.
-
-    A preview window shows the camera for `seconds` seconds before the shot.
-    Returns the file name, or None if there is no camera (the lab then keeps
-    using the random image). 2592 x 1944 is the full resolution of the
-    Camera Module v1; other modules are scaled to the same size.
-    """
-    import os
-    import shutil
-    import subprocess
-
-    if not shutil.which("rpicam-still"):
-        print("rpicam-still is not installed: no camera support. "
-              "The lab will use the random image.")
-        return None
-    raw = path + ".yuv"
-    cmd = ["rpicam-still", "-t", str(seconds * 1000), "--encoding", "yuv420",
-           "--width", str(width), "--height", str(height), "-o", raw]
-    print(f"Look at the camera: taking the photo in {seconds} seconds...", flush=True)
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:                 # no screen (e.g. over SSH): no preview
-        result = subprocess.run(cmd + ["-n"], capture_output=True, text=True)
-    if result.returncode != 0 or not os.path.exists(raw):
-        last = (result.stderr.strip().splitlines() or ["unknown error"])[-1]
-        print(f"The camera did not take the photo ({last}). "
-              "Check the cable, reboot, and try again. The lab will use the random image.")
-        return None
-
-    # YUV420: first the brightness (Y) of every pixel, which is exactly the
-    # grayscale image, then the colour planes, which we do not need. Each row
-    # of Y can be padded to `stride` bytes.
-    with open(raw, "rb") as fh:
-        data = fh.read()
-    os.remove(raw)
-    stride = len(data) * 2 // (3 * height)
-    rows = [list(data[r * stride:r * stride + width]) for r in range(height)]
-    write_pgm(path, rows)
-    print(f"Saved {path}: {width} x {height} pixels, grayscale.")
-    return path
+    display(HTML(
+        f"<p>Your photo: <b>{w} × {h} = {w * h:,} pixels</b>, each a number from 0 "
+        f"(black) to 255 (white), {w * h * 4 / 1e6:.0f} MB as 32-bit integers. The "
+        f"edge-detection kernel gives 0 where the brightness does not change, and a large "
+        f"value at edges. The C version (row order) computed all {oh * ow:,} output pixels "
+        f"in {t * 1e3:.0f} ms.</p>"
+        + html_picture(small_in, "Input photo", scale=1)
+        + html_picture(edges, "Output: edges (dark = strong edge)", scale=1)
+        + "<br>"
+        + html_numbers(centre, f"Zoom: {zoom} × {zoom} pixels at the centre")
+        + html_numbers(EDGE_KERNEL, "Edge-detection kernel", gray=False)))
 
 
 def notebook_step(y, x, seed=4082):
@@ -512,12 +552,10 @@ def step_example(seed):
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("mode", nargs="?", choices=["step", "race"],
+    p.add_argument("mode", nargs="?", choices=["step", "photo", "race"],
                    help="go straight to one mode instead of the menu")
-    p.add_argument("--size", type=int, default=DEFAULT_SIZE,
-                   help=f"image size for the race (default {DEFAULT_SIZE})")
-    p.add_argument("--image", metavar="FILE.pgm",
-                   help="race on this photo (see take_photo) instead of the random image")
+    p.add_argument("--image", metavar="FILE.pgm", default=PHOTO,
+                   help=f"photo for the race (default {PHOTO})")
     args = p.parse_args()
 
     if platform.machine() != "aarch64":
@@ -525,17 +563,17 @@ def main():
                  f"this one is {platform.machine()}. Check 'uname -m'.")
     try:
         load("libconv_c.so", "conv_c_rows")
-        load("libconv_asm.so", "conv_asm_v4")
     except RuntimeError as err:
         sys.exit(f"error: {err}")
-    modes = {"1": "step", "2": "race"}
+    modes = {"1": "step", "2": "photo", "3": "race"}
 
     choice = args.mode
     while True:
         if not args.mode:
             print(CLEAR + BOLD + "2D CONVOLUTION: Python -> C -> Assembly" + RESET + "\n")
             print("  1) Step by step   how a convolution works")
-            print("  2) Race           how fast each language does it")
+            print("  2) Photo          take the photo with the camera")
+            print("  3) Race           how fast each language processes the photo")
             print("  q) Quit")
             key = ask("\n> ")
             if key == "q":
@@ -543,8 +581,10 @@ def main():
             choice = modes.get(key)
         if choice == "step":
             step_mode()
+        elif choice == "photo":
+            photo_mode()
         elif choice == "race":
-            race_mode(args.size, args.image)
+            race_mode(args.image)
         if args.mode:
             break
     print(SHOW_CURSOR, end="")

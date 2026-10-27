@@ -13,7 +13,8 @@ do not need to type them.
 - A Raspberry Pi 5 (a Pi 4, 3 or Zero 2 W also works, only slower).
 - A microSD card of 16 GB or more, the power supply, and a heatsink or fan.
 - An internet connection (Wi-Fi or cable).
-- Optional: a Raspberry Pi camera with a Pi 5 camera cable.
+- A Raspberry Pi camera with a Pi 5 camera cable. The lab works on a photo
+  taken with it, so the camera is required.
 - A computer with [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
   to prepare the SD card, if the Pi does not have a system yet.
 
@@ -101,14 +102,14 @@ Why the extra options:
 If the download still fails, run the same command again: the packages that
 already downloaded are kept.
 
-## Step 6 (optional). Connect the camera
+## Step 6. Connect the camera
 
-The lab can use a photo from the Raspberry Pi camera. Without a camera
-everything still works, with a random image instead.
+The lab works on a photo taken with the Raspberry Pi camera, so this step is
+required. **The camera must be connected before the Pi is powered on**: the
+Pi only detects it when it starts.
 
-1. **Shut the Pi down and unplug it** (`sudo shutdown now`). The camera is
-   only detected when the Pi starts: connecting it while it is on does not
-   work.
+1. **Shut the Pi down and unplug it** (`sudo shutdown now`). Connecting the
+   camera while the Pi is on does not work.
 2. On a Raspberry Pi 5 the camera goes into one of the two small connectors
    marked **CAM/DISP 0** or **CAM/DISP 1**. The Pi 5 connectors are smaller
    than on older models, so the camera needs a **Pi 5 camera cable** (one end
@@ -122,8 +123,9 @@ everything still works, with a random image instead.
 rpicam-hello --list-cameras
 ```
 
-It must list a camera, for example `0 : ov5647 [2592x1944 ...]`. Take a
-test photo and open `~/test.jpg` in the file manager:
+It must list a camera, for example `0 : ov5647 [2592x1944 ...]`. If it says
+`No cameras available!`, go back to point 1. Take a test photo and open
+`~/test.jpg` in the file manager:
 
 ```sh
 rpicam-still -n -o ~/test.jpg
@@ -161,7 +163,9 @@ be on the same network.
 | Problem | What to do |
 | --- | --- |
 | `rpicam-hello --list-cameras` says `No cameras available!` | Shut the Pi down, unplug it, check that the cable is the Pi 5 type and fully inserted at both ends with the latches closed, and power it on again (Step 6). |
+| The notebook says `No camera detected` | Same as above: shut down, check the cable, power on, then run the photo cell again. |
 | The notebook says the camera did not take the photo | Close any other program using the camera, run `rpicam-hello --list-cameras` in a terminal, and run the photo cell again. |
+| `photo.pgm not found` | Take the photo first: run the photo cell in Part 1 of the notebook (or `python3 conv_demo.py photo` in a terminal). |
 | `uname -m` prints `armv7l` or `armv6l` | The system is 32-bit. Install Raspberry Pi OS (64-bit), Step 1. |
 | `git clone` says `Password authentication is not supported` | The repository is private and GitHub needs a token, not a password. Ask your instructor for access. |
 | `pip install` fails with `incomplete-download` | Slow connection. Run the Step 5 command again; it continues where it stopped. |
@@ -188,8 +192,8 @@ python3 conv_bench.py --test                     # must end in "all OK"
 python3 -m venv ~/jupyter-env
 ~/jupyter-env/bin/pip install --index-url https://pypi.org/simple --resume-retries 5 --timeout 60 notebook
 
-# optional: check the camera (connect it with the Pi off)
-rpicam-hello --list-cameras
+# check the camera (connect it with the Pi off, then power on)
+rpicam-hello --list-cameras                      # must list the camera
 
 # every time you work on the lab
 cd ~/Assembly-with-Raspberry-PI-5
