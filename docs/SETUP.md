@@ -171,10 +171,10 @@ be on the same network.
 | `pip install` fails with `incomplete-download` | Slow connection. Run the Step 5 command again; it continues where it stopped. |
 | `pip` says `no such option: --resume-retries` | Old `pip`. Run `~/jupyter-env/bin/pip install --upgrade pip` and repeat Step 5. |
 | `jupyter: No such file or directory` | Jupyter is not installed yet, or you typed `jupyter` alone. Use the full path `~/jupyter-env/bin/jupyter` (Step 7). |
-| `make` shows `Error` in `src/conv_student.S` | A mistake in your assembly (Part 5 of the lab). Read the line number in the message, fix it and run `make` again. |
+| Part 5 says `NOT BUILT` | A mistake in your assembly. The message shows the line of your code and what is wrong: fix it in the cell and run the cell again. |
 | A row of the table says `NOT BUILT` | That library did not build. Run `make` and read its error. |
 | A row of the table says `MISMATCH` | That version computes a wrong result. In Part 5, check the order of the `madd` operands. |
-| You want to undo your changes to the exercise | `git checkout src/conv_student.S` restores the original file. |
+| You want to undo your changes to the exercise | Ctrl + Z in the Part 5 cell undoes your edits. If `src/conv_student.S` itself is broken, `git checkout src/conv_student.S` restores it. |
 | Times look much slower than expected | Close other programs, check the heatsink or fan, and run `vcgencmd get_throttled`: `throttled=0x0` means the CPU is not being slowed down by heat or power. |
 
 ## Summary of the commands
