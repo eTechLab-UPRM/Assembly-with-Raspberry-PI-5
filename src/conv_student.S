@@ -12,7 +12,9 @@
  *         mul     w20, w20, w10           // product = pixel * k[1]
  *         add     w19, w19, w20           // acc     = acc + product
  *
- * ARM64 has a multiply-accumulate (MAC) instruction that does both at once:
+ * This is how you would write it in RISC-V (Ripes) too: RV32IM has no
+ * instruction that multiplies and adds at once. ARM64 has one, a
+ * multiply-accumulate (MAC) instruction:
  *
  *         madd    Wd, Wn, Wm, Wa          // Wd = Wa + Wn * Wm
  *
@@ -23,6 +25,9 @@
  *   2. python3 conv_bench.py --skip-python      (quick check)
  *
  * Your row must say OK. Compare its time with ASM v2.
+ *
+ * Coming from RISC-V? Part 2 of lab.ipynb has a RISC-V (Ripes) -> ARM64
+ * table of registers and instructions.
  *
  * Hints: acc lives in w19 and the pixel in w20. Keep the first
  * "mul w19, w20, w9" as it is: it starts the sum (acc = pixel * k[0]).
