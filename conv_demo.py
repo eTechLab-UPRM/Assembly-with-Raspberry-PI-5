@@ -9,7 +9,7 @@ conv_demo.py - see the 2D convolution, in the console or in lab.ipynb.
 
 Build the libraries first with "make". The console demo uses only the Python
 standard library; lab.ipynb also uses notebook_step(), take_photo(),
-notebook_image() and notebook_race().
+notebook_image(), build_v3() and notebook_race().
 """
 import argparse
 import os
@@ -377,6 +377,57 @@ def race_mode(image=PHOTO):
     print("\n".join(lines[1:]))
     print((GREEN if state["ok"] else RED) + check + RESET)
     ask(f"\n{DIM}[Enter] back to menu{RESET} ")
+
+
+# ---------------------------------------------------------------------------
+# Part 5 of the notebook: the student's assembly v3.
+# ---------------------------------------------------------------------------
+HERE = os.path.dirname(os.path.abspath(__file__))
+V3_FILE = os.path.join("src", "conv_student.S")
+V3_START = "// ---- YOUR CODE STARTS HERE ----"
+V3_END = "// ---- YOUR CODE ENDS HERE ----"
+
+
+def build_v3(code):
+    """Put `code` (one output pixel of assembly v3) into src/conv_student.S,
+    between the YOUR CODE markers, build it with make, and run the benchmark
+    without Python. Assembler errors point to the line of `code`, not of the
+    file."""
+    import re
+    import subprocess
+
+    path = os.path.join(HERE, V3_FILE)
+    with open(path) as f:
+        text = f.read()
+    if V3_START not in text or V3_END not in text:
+        raise LabError(f"{V3_FILE} lost its YOUR CODE markers. Restore it with:\n"
+                       f"  git checkout {V3_FILE}")
+    head, rest = text.split(V3_START, 1)
+    tail = rest.split(V3_END, 1)[1]
+    lines = code.strip("\n").split("\n")
+    first = (head + V3_START).count("\n") + 2   # file line of the first code line
+    with open(path, "w") as f:
+        f.write(head + V3_START + "\n" + "\n".join(lines) + "\n        " + V3_END + tail)
+
+    print("Building...", flush=True)
+    make = subprocess.run(["make"], cwd=HERE, capture_output=True, text=True)
+    if make.returncode != 0:
+        problems = []
+        for match in re.finditer(r"conv_student\.S:(\d+): (?:Error|error): (.*)", make.stderr):
+            n = int(match.group(1)) - first
+            where = (f"line {n + 1} of your code: {lines[n].strip()}"
+                     if 0 <= n < len(lines) else f"{V3_FILE}, line {match.group(1)}")
+            problems.append(f"  {where}\n    -> {match.group(2)}")
+        raise LabError("The assembler found an error, so v3 was NOT BUILT:\n"
+                       + ("\n".join(problems) or make.stderr.strip()))
+
+    count = sum(1 for line in lines if re.match(r"\s*madd\b", line))
+    print(f"Built. Your code has {count} madd instructions (8 when you are done).\n",
+          flush=True)
+    # Same command as the other benchmark cells of the notebook.
+    bench = subprocess.run(["python3", "conv_bench.py", "--skip-python"],
+                           cwd=HERE, capture_output=True, text=True)
+    print(bench.stdout + bench.stderr)
 
 
 # ---------------------------------------------------------------------------

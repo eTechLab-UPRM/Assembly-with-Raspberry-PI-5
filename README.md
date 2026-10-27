@@ -47,8 +47,12 @@ are comparable.
 | ASM v3 MAC | `src/conv_student.S` | v2 with each `MUL` + `ADD` pair fused into one `MADD`. **Written by the students.** |
 | ASM v4 NEON | `src/conv_asm.S` | Vector instructions compute 4 output pixels at once. |
 
-`src/conv_student.S` starts as a copy of v2 with 8 places marked `TODO`.
-Until a student completes it, the v3 row is correct but as fast as v2.
+`src/conv_student.S` starts as v2 with its first `MUL` + `ADD` pair already
+fused into `MADD`, as a worked example, and 7 pairs marked `TODO`. Students do
+not edit the file by hand: in Part 5 of the notebook they edit the code of one
+output pixel in a cell, and `build_v3()` (in `conv_demo.py`) writes it
+between the file's `YOUR CODE` markers, builds it, points any assembler error
+to the line of their cell, and runs the benchmark.
 
 ## Setup and running the lab
 

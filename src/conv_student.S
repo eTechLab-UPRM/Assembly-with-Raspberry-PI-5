@@ -1,15 +1,18 @@
 /*
  * conv_student.S - YOUR assembly version: conv_asm_v3 (MAC).
  *
- * This file starts as an exact copy of conv_asm_v2 from src/conv_asm.S.
- * Run "make" and "python3 conv_bench.py": the "ASM v3 MAC (yours)" row is
- * correct (OK) but no faster than v2, because the code is the same.
+ * You do not need to edit this file by hand: Part 5 of lab.ipynb has the
+ * code for one output pixel in a notebook cell, and build_v3() writes it
+ * between the two "YOUR CODE" markers below, builds it and measures it.
+ *
+ * This file starts as conv_asm_v2 from src/conv_asm.S with the first
+ * MUL + ADD pair already fused into one MADD, as an example.
  *
  * YOUR TASK
  * ---------
  * In v2 every kernel tap after the first one takes two instructions:
  *
- *         mul     w20, w20, w10           // product = pixel * k[1]
+ *         mul     w20, w20, w11           // product = pixel * k[2]
  *         add     w19, w19, w20           // acc     = acc + product
  *
  * This is how you would write it in RISC-V (Ripes) too: RV32IM has no
@@ -18,13 +21,8 @@
  *
  *         madd    Wd, Wn, Wm, Wa          // Wd = Wa + Wn * Wm
  *
- * Replace each of the 8 MUL + ADD pairs marked TODO below with ONE madd
- * instruction that gives the same result. Then:
- *
- *   1. make                                     (rebuild; fix any error)
- *   2. python3 conv_bench.py --skip-python      (quick check)
- *
- * Your row must say OK. Compare its time with ASM v2.
+ * Replace each of the 7 MUL + ADD pairs marked TODO with ONE madd
+ * instruction that gives the same result, following the EXAMPLE.
  *
  * Coming from RISC-V? Part 2 of lab.ipynb has a RISC-V (Ripes) -> ARM64
  * table of registers and instructions.
@@ -66,11 +64,12 @@ conv_asm_v3:
         add     x2, x8, x4              // p2 = row y + 2
         mov     x6, x5                  // columns left = ow
 
-2:      ldr     w20, [x7], #4           // row y:   in[y][x], then p0 += 4
+2:                                      // one output pixel per iteration
+        // ---- YOUR CODE STARTS HERE ----
+        ldr     w20, [x7], #4           // row y:   in[y][x], then p0 += 4
         mul     w19, w20, w9            //   acc  = pixel * k[0]
         ldr     w20, [x7]               //          in[y][x+1]
-        mul     w20, w20, w10           // TODO 1: fuse this MUL ...
-        add     w19, w19, w20           //         ... and this ADD into one MADD
+        madd    w19, w20, w10, w19      // EXAMPLE (was TODO 1): acc = acc + pixel * k[1]
         ldr     w20, [x7, #4]           //          in[y][x+2]
         mul     w20, w20, w11           // TODO 2: fuse this MUL ...
         add     w19, w19, w20           //         ... and this ADD into one MADD
@@ -94,6 +93,7 @@ conv_asm_v3:
         ldr     w20, [x2, #4]
         mul     w20, w20, w17           // TODO 8: fuse this MUL ...
         add     w19, w19, w20           //         ... and this ADD into one MADD
+        // ---- YOUR CODE ENDS HERE ----
 
         str     w19, [x1], #4           // *out++ = acc
         subs    x6, x6, #1              // columns left--, sets the Z flag
