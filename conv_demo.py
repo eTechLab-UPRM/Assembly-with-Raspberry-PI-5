@@ -9,7 +9,7 @@ conv_demo.py - see the 2D convolution, in the console or in lab.ipynb.
 
 Build the libraries first with "make". The console demo uses only the Python
 standard library; lab.ipynb also uses notebook_step(), take_photo(),
-notebook_image(), build_c_v2(), build_v3() and notebook_race().
+notebook_image(), build_c_v2(), build_v1(), build_v3() and notebook_race().
 """
 import argparse
 import os
@@ -402,7 +402,7 @@ def race_mode(image=PHOTO):
 
 
 # ---------------------------------------------------------------------------
-# Parts 3 and 6 of the notebook: the code students write.
+# Parts 3, 4 and 7 of the notebook: the code students write.
 # ---------------------------------------------------------------------------
 YOUR_START = "// ---- YOUR CODE STARTS HERE ----"
 YOUR_END = "// ---- YOUR CODE ENDS HERE ----"
@@ -472,8 +472,15 @@ def build_c_v2(code):
     run_yours_benchmark()
 
 
+def build_v1(code):
+    """Part 4: build the student's half of assembly v1 and measure it."""
+    build_yours(code, "conv_student_v1.S", indent="        ")
+    print()
+    run_yours_benchmark()
+
+
 def build_v3(code):
-    """Part 6: build the student's assembly v3 (one output pixel) and measure it."""
+    """Part 7: build the student's assembly v3 (one output pixel) and measure it."""
     import re
 
     lines = build_yours(code, "conv_student.S", indent="        ")

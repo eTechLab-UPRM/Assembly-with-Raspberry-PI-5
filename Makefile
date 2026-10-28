@@ -10,8 +10,8 @@ CC     ?= gcc
 CFLAGS := -O2 -Wall -Wextra -fPIC -shared
 BUILD  := build
 
-all: $(BUILD)/libconv_c.so $(BUILD)/libconv_student_c.so $(BUILD)/libconv_asm.so \
-     $(BUILD)/libconv_student.so
+all: $(BUILD)/libconv_c.so $(BUILD)/libconv_student_c.so $(BUILD)/libconv_student_v1.so \
+     $(BUILD)/libconv_asm.so $(BUILD)/libconv_student.so
 
 # C v1, optimized by the compiler (-O2).
 $(BUILD)/libconv_c.so: src/conv.c | $(BUILD)
@@ -23,7 +23,12 @@ $(BUILD)/libconv_student_c.so: src/conv_student_c.c | $(BUILD)
 	rm -f $@
 	$(CC) $(CFLAGS) -Wno-unused-parameter -Wno-unused-variable -o $@ $<
 
-# Hand-written assembly, versions v1, v2 and v4. gcc runs the assembler.
+# Assembly v1: students write its second half. Rebuilt from scratch too.
+$(BUILD)/libconv_student_v1.so: src/conv_student_v1.S | $(BUILD)
+	rm -f $@
+	$(CC) $(CFLAGS) -o $@ $<
+
+# Hand-written assembly, versions v2 and v4. gcc runs the assembler.
 $(BUILD)/libconv_asm.so: src/conv_asm.S | $(BUILD)
 	$(CC) $(CFLAGS) -o $@ $<
 

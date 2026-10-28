@@ -5,7 +5,8 @@
  * changes one idea compared to the previous one:
  *
  *   conv_asm_v1  Brute force   A direct translation of the C loops: every
- *                              array index is recomputed with MUL.
+ *                              array index is recomputed with MUL. YOU write
+ *                              half of it: src/conv_student_v1.S
  *   conv_asm_v2  Pointers      No index arithmetic inside the loop: pointers
  *                              walk the image, the kernel stays in registers.
  *   conv_asm_v3  MAC           v2 with each MUL + ADD pair fused into one
@@ -34,72 +35,9 @@
         .text
 
 /* ------------------------------------------------------------------------
- * conv_asm_v1 - brute force
- *
- *   for y in 0..oh-1:
- *     for x in 0..ow-1:
- *       acc = 0
- *       for ky in 0..2:
- *         for kx in 0..2:
- *           acc += in[(y+ky)*w + (x+kx)] * k[ky*3 + kx]
- *       out[y*ow + x] = acc
- *
- * Exactly what the C source says, nothing more: four loops, and every index
- * computed from scratch with MUL for every single multiply-add. The kernel
- * coefficient is also re-read from memory every time.
- *
- * Registers:
- *   x5 = oh   x6 = ow   x7 = x   x8 = y   w9 = acc   x10 = ky   x11 = kx
- *   x12..x16 = temporaries
- * ------------------------------------------------------------------------ */
-        .global conv_asm_v1
-        .type   conv_asm_v1, %function
-conv_asm_v1:
-        cmp     x3, #3                  // image smaller than the kernel?
-        b.lt    9f                      //   then there is nothing to do
-        cmp     x4, #3
-        b.lt    9f
-        sub     x5, x3, #2              // oh = h - 2
-        sub     x6, x4, #2              // ow = w - 2
-
-        mov     x8, #0                  // y = 0
-1:      mov     x7, #0                  //   x = 0
-2:      mov     w9, #0                  //     acc = 0
-        mov     x10, #0                 //     ky = 0
-3:      mov     x11, #0                 //       kx = 0
-4:      add     x12, x8, x10            //         y + ky
-        mul     x12, x12, x4            //         (y + ky) * w
-        add     x13, x7, x11            //         x + kx
-        add     x12, x12, x13           //         index into in[]
-        ldr     w14, [x0, x12, lsl #2]  //         pixel = in[index]   (lsl #2: * 4 bytes)
-        mov     x15, #3
-        mul     x15, x10, x15           //         ky * 3
-        add     x15, x15, x11           //         index into k[]
-        ldr     w16, [x2, x15, lsl #2]  //         coef = k[index]
-        mul     w14, w14, w16           //         pixel * coef
-        add     w9, w9, w14             //         acc += pixel * coef
-        add     x11, x11, #1            //         kx++
-        cmp     x11, #3
-        b.lt    4b
-        add     x10, x10, #1            //       ky++
-        cmp     x10, #3
-        b.lt    3b
-        mul     x12, x8, x6             //     y * ow
-        add     x12, x12, x7            //     index into out[]
-        str     w9, [x1, x12, lsl #2]   //     out[index] = acc
-        add     x7, x7, #1              //     x++
-        cmp     x7, x6
-        b.lt    2b
-        add     x8, x8, #1              //   y++
-        cmp     x8, x5
-        b.lt    1b
-9:      ret
-        .size   conv_asm_v1, .-conv_asm_v1
-
-/* ------------------------------------------------------------------------
  * conv_asm_v2 - pointers (no index arithmetic in the loop)
  *
- * Same result as v1 with much less work per output pixel:
+ * Same result as v1 (src/conv_student_v1.S) with much less work per output pixel:
  *   - The 9 kernel coefficients are loaded ONCE into registers w9..w17.
  *   - No index multiplications: three pointers (p0, p1, p2) sit on the three
  *     image rows under the kernel and simply move 4 bytes to the right.

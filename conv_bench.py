@@ -58,14 +58,14 @@ VERSIONS = [
     # (name in the table,   library,              function)
     ("C v1 column order",   "libconv_c.so",       "conv_c_cols"),
     ("C v2 rows (yours)",   "libconv_student_c.so", "conv_c_rows"),
-    ("ASM v1 brute force",  "libconv_asm.so",     "conv_asm_v1"),
+    ("ASM v1 brute (yours)", "libconv_student_v1.so", "conv_asm_v1"),
     ("ASM v2 pointers",     "libconv_asm.so",     "conv_asm_v2"),
     ("ASM v3 MAC (yours)",  "libconv_student.so", "conv_asm_v3"),
     ("ASM v4 NEON",         "libconv_asm.so",     "conv_asm_v4"),
 ]
 
-# The versions students write in the notebook (Part 3 and Part 6).
-YOURS = {"C v2 rows (yours)", "ASM v3 MAC (yours)"}
+# The versions students write in the notebook (Parts 3, 4 and 7).
+YOURS = {"C v2 rows (yours)", "ASM v1 brute (yours)", "ASM v3 MAC (yours)"}
 
 INT32_PTR = ctypes.POINTER(ctypes.c_int32)
 

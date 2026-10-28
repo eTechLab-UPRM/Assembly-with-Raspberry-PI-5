@@ -5,8 +5,10 @@ timed on a photo taken with the Raspberry Pi camera. The goal is to see how much
 each step down in language depth buys, and how the way assembly is written
 changes its speed.
 
-The lab is the Jupyter notebook **`lab.ipynb`**: it reads like a short book
-chapter, runs the code in its cells, and has the questions students answer.
+It is a mini project for students (two to three weeks), built around the
+Jupyter notebook **`lab.ipynb`**: it reads like a short book chapter, runs the
+code in its cells, has students write three of the versions, and has the
+questions they answer.
 
 ## The operation
 
@@ -42,17 +44,21 @@ are comparable.
 | Python | `conv_bench.py` | Four nested loops. Every `+` and `*` is interpreted while the program runs. |
 | C v1 column order | `src/conv.c` | The same four loops, compiled to machine code by `gcc -O2`, with the outer loop over columns: every step jumps a whole row in memory. Each C line is commented with its RISC-V (Ripes) translation. |
 | C v2 row order | `src/conv_student_c.c` | The same convolution walking the image row by row, the order it is stored in memory. **Written by the students.** |
-| ASM v1 brute force | `src/conv_asm.S` | A direct translation of the C loops: every index is recomputed with `MUL`. |
+| ASM v1 brute force | `src/conv_student_v1.S` | A direct translation of C v2: every index is recomputed with `MUL`. **Students write its second half.** |
 | ASM v2 pointers | `src/conv_asm.S` | No index arithmetic in the loop: pointers walk the image, the kernel stays in registers. |
 | ASM v3 MAC | `src/conv_student.S` | v2 with each `MUL` + `ADD` pair fused into one `MADD`. **Written by the students.** |
 | ASM v4 NEON | `src/conv_asm.S` | Vector instructions compute 4 output pixels at once. |
 
-Students write two versions in notebook cells, never editing the files by
+Students write three versions in notebook cells, never editing the files by
 hand:
 
 - **C v2** (Part 3): they get the function's signature and write the four
   loops, with hints. `build_c_v2()` puts it into `src/conv_student_c.c`.
-- **ASM v3** (Part 6): `src/conv_student.S` starts as v2 with its first `MUL` +
+- **ASM v1** (Part 4): the first half of the function is given (size check,
+  `oh`/`ow`, the start of the four loops and the pixel load); they write the
+  coefficient load, the multiply-add, the four loop ends and the store.
+  `build_v1()` puts it into `src/conv_student_v1.S`.
+- **ASM v3** (Part 7): `src/conv_student.S` starts as v2 with its first `MUL` +
   `ADD` pair already fused into `MADD`, as a worked example, and 7 pairs
   marked `TODO`; they edit the code of one output pixel. `build_v3()` puts
   it into the file.
@@ -135,7 +141,8 @@ conv_bench.py       Python version, runner and timing table
 conv_demo.py        camera, console demo, and the notebook's step-by-step, image and race
 src/conv.c          C v1 (column order), with RISC-V comments
 src/conv_student_c.c  C v2 (row order), the students' C exercise
-src/conv_asm.S      ARM64 assembly v1, v2 and v4, commented line by line
-src/conv_student.S  ARM64 assembly v3, the students' assembly exercise
-Makefile            builds the four libraries in build/
+src/conv_asm.S      ARM64 assembly v2 and v4, commented line by line
+src/conv_student_v1.S  ARM64 assembly v1, the students' first assembly exercise
+src/conv_student.S  ARM64 assembly v3, the students' second assembly exercise
+Makefile            builds the five libraries in build/
 ```
