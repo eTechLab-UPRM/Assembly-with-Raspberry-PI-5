@@ -286,7 +286,7 @@ def check_yours():
     that crashes cannot take the notebook down with it."""
     for name, func, _ in load_versions():
         if name in YOURS:
-            ok = func is not None and check_version(func, [(9, 11), (17, 9)])
+            ok = func is not None and check_version(func, [(3, 3), (9, 11), (17, 9), (33, 65)])
             print(("OK " if ok else "FAIL ") + name, flush=True)
 
 

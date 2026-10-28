@@ -203,18 +203,22 @@ def short_name(name):
     return " ".join(name.split()[:2])
 
 
-def yours_ok():
-    """Names of the student versions that are correct, checked in a separate
-    process so that one that crashes cannot take the race down with it."""
+def check_yours_output():
+    """The output of conv_bench.py --check-yours, run in a separate process
+    so that a student version that crashes or never ends cannot take the
+    notebook down with it ("" if it does not finish)."""
     import subprocess
 
     try:
-        result = subprocess.run(["python3", "conv_bench.py", "--check-yours"], cwd=HERE,
-                                capture_output=True, text=True, timeout=60)
+        return subprocess.run(["python3", "conv_bench.py", "--check-yours"], cwd=HERE,
+                              capture_output=True, text=True, timeout=60).stdout
     except subprocess.TimeoutExpired:
-        result = None
-    ok = {line[3:] for line in (result.stdout if result else "").splitlines()
-          if line.startswith("OK ")}
+        return ""
+
+
+def yours_ok():
+    """Names of the student versions that are correct."""
+    ok = {line[3:] for line in check_yours_output().splitlines() if line.startswith("OK ")}
     for name in sorted(YOURS - ok):
         print(f"{name} is not in the race: it is not correct yet.", flush=True)
     return ok
@@ -446,9 +450,11 @@ def build_yours(code, filename, indent=""):
     return lines
 
 
-def run_yours_benchmark():
+def run_yours_benchmark(name):
     """The benchmark without Python, in its own process: if the student's
-    code crashes or never ends, the notebook survives and says why."""
+    code crashes or never ends, the notebook survives and says why. Then a
+    check of version `name` with random images and kernels: the edge kernel
+    of the photo is symmetric, so it cannot catch a transposed kernel."""
     import subprocess
 
     try:
@@ -463,20 +469,27 @@ def run_yours_benchmark():
     if bench.returncode < 0:
         raise LabError("Your code crashed the program (it read or wrote outside the "
                        "image).\nCheck the loop limits and the indexes.")
+    if f"OK {name}" in check_yours_output():
+        print(f"Extra check with random images and kernels: {name} is OK.")
+    else:
+        raise LabError(f"Extra check with random images and kernels: {name} gives a "
+                       "WRONG result.\nThe photo's edge kernel is symmetric, so some "
+                       "mistakes only show up with other kernels:\ncheck the kernel "
+                       "index k[ky * 3 + kx] (ky and kx not swapped) and the loop limits.")
 
 
 def build_c_v2(code):
     """Part 3: build the student's C v2 (row order) and measure it."""
     build_yours(code, "conv_student_c.c")
     print()
-    run_yours_benchmark()
+    run_yours_benchmark("C v2 rows (yours)")
 
 
 def build_v1(code):
     """Part 4: build the student's half of assembly v1 and measure it."""
     build_yours(code, "conv_student_v1.S", indent="        ")
     print()
-    run_yours_benchmark()
+    run_yours_benchmark("ASM v1 brute (yours)")
 
 
 def build_v3(code):
@@ -486,7 +499,7 @@ def build_v3(code):
     lines = build_yours(code, "conv_student.S", indent="        ")
     count = sum(1 for line in lines if re.match(r"\s*madd\b", line))
     print(f"Your code has {count} madd instructions (8 when you are done).\n", flush=True)
-    run_yours_benchmark()
+    run_yours_benchmark("ASM v3 MAC (yours)")
 
 
 # ---------------------------------------------------------------------------

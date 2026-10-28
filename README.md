@@ -44,7 +44,7 @@ are comparable.
 | Python | `conv_bench.py` | Four nested loops. Every `+` and `*` is interpreted while the program runs. |
 | C v1 column order | `src/conv.c` | The same four loops, compiled to machine code by `gcc -O2`, with the outer loop over columns: every step jumps a whole row in memory. Each C line is commented with its RISC-V (Ripes) translation. |
 | C v2 row order | `src/conv_student_c.c` | The same convolution walking the image row by row, the order it is stored in memory. **Written by the students.** |
-| ASM v1 brute force | `src/conv_student_v1.S` | A direct translation of C v2: every index is recomputed with `MUL`. **Students write its second half.** |
+| ASM v1 brute force | `src/conv_student_v1.S` | A direct translation of C v2: every index is recomputed with `MUL`. **Students write its core.** |
 | ASM v2 pointers | `src/conv_asm.S` | No index arithmetic in the loop: pointers walk the image, the kernel stays in registers. |
 | ASM v3 MAC | `src/conv_student.S` | v2 with each `MUL` + `ADD` pair fused into one `MADD`. **Written by the students.** |
 | ASM v4 NEON | `src/conv_asm.S` | Vector instructions compute 4 output pixels at once. |
@@ -54,10 +54,11 @@ hand:
 
 - **C v2** (Part 3): they get the function's signature and write the four
   loops, with hints. `build_c_v2()` puts it into `src/conv_student_c.c`.
-- **ASM v1** (Part 4): the first half of the function is given (size check,
-  `oh`/`ow`, the start of the four loops and the pixel load); they write the
-  coefficient load, the multiply-add, the four loop ends and the store.
-  `build_v1()` puts it into `src/conv_student_v1.S`.
+- **ASM v1** (Part 4): the function is given (size check, `oh`/`ow`, the
+  four loops with named labels as in Ripes, the pixel load); they write its
+  core: the coefficient load, the multiply-add and the store of the output
+  pixel, about 9 instructions. `build_v1()` puts it into
+  `src/conv_student_v1.S`.
 - **ASM v3** (Part 7): `src/conv_student.S` starts as v2 with its first `MUL` +
   `ADD` pair already fused into `MADD`, as a worked example, and 7 pairs
   marked `TODO`; they edit the code of one output pixel. `build_v3()` puts
