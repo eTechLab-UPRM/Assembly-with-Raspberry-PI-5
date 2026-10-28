@@ -1,7 +1,7 @@
 /*
  * conv_student.S - YOUR assembly version: conv_asm_v3 (MAC).
  *
- * You do not need to edit this file by hand: Part 6 of project.ipynb has the
+ * You do not need to edit this file by hand: Part 7 of project.ipynb has the
  * code for one output pixel in a notebook cell, and build_v3() writes it
  * between the two "YOUR CODE" markers below, builds it and measures it.
  *
@@ -24,7 +24,7 @@
  * Replace each of the 7 MUL + ADD pairs marked TODO with ONE madd
  * instruction that gives the same result, following the EXAMPLE.
  *
- * Coming from RISC-V? Part 2 of project.ipynb has a RISC-V (Ripes) -> ARM64
+ * Coming from RISC-V? Part 4 of project.ipynb has a RISC-V (Ripes) -> ARM64
  * table of registers and instructions.
  *
  * Hints: acc lives in w19 and the pixel in w20. Keep the first

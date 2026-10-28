@@ -54,12 +54,12 @@ hand:
 
 - **C v2** (Part 3): they get the function's signature and write the four
   loops, with hints. `build_c_v2()` puts it into `src/conv_student_c.c`.
-- **ASM v1** (Part 4): the function is given (size check, `oh`/`ow`, the
+- **ASM v1** (Part 5): the function is given (size check, `oh`/`ow`, the
   four loops with named labels as in Ripes, the pixel load); they write its
   core: the coefficient load, the multiply-add and the store of the output
   pixel, about 9 instructions. `build_v1()` puts it into
   `src/conv_student_v1.S`.
-- **ASM v3** (Part 6): `src/conv_student.S` starts as v2 with its first `MUL` +
+- **ASM v3** (Part 7): `src/conv_student.S` starts as v2 with its first `MUL` +
   `ADD` pair already fused into `MADD`, as a worked example, and 7 pairs
   marked `TODO`; they edit the code of one output pixel. `build_v3()` puts
   it into the file.

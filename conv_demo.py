@@ -481,14 +481,14 @@ def build_c_v2(code):
 
 
 def build_v1(code):
-    """Part 4: build the student's half of assembly v1 and measure it."""
+    """Part 5: build the student's half of assembly v1 and measure it."""
     build_yours(code, "conv_student_v1.S", indent="        ")
     print()
     run_yours_benchmark("ASM v1 brute (yours)")
 
 
 def build_v3(code):
-    """Part 6: build the student's assembly v3 (one output pixel) and measure it."""
+    """Part 7: build the student's assembly v3 (one output pixel) and measure it."""
     import re
 
     lines = build_yours(code, "conv_student.S", indent="        ")
@@ -653,6 +653,71 @@ def notebook_step(y, x, seed=4082):
         f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= <b>{out[y][x]}</b></p>"
         "<b>Output image</b> (pixel (y, x) is yellow)<br>"
         + table(out, lambda r, c: (r, c) == (y, x))))
+
+
+def notebook_animation(seed=4082, step_seconds=1.0, cell=32):
+    """Animate the kernel sliding over the 6 x 8 example of notebook_step.
+
+    Pure HTML and CSS (no JavaScript), so it also moves in the exported HTML.
+    Each output pixel gets one time slot: the window moves there, its
+    calculation shows, and the output pixel appears. The mouse pauses it.
+    """
+    from IPython.display import HTML, display
+
+    img, k, out = step_example(seed)
+    oh, ow = len(out), len(out[0])
+    n = oh * ow
+    total = n * step_seconds
+    css = [f".cva{{position:relative;font-family:monospace;color:#000;background:#fff;"
+           f"padding:12px;display:inline-block;line-height:normal}}"
+           f".cva:hover *{{animation-play-state:paused}}"
+           f".cva-grid{{position:relative;display:grid;grid-template-columns:repeat(var(--c),{cell}px);"
+           f"grid-auto-rows:{cell}px;margin:4px 32px 12px 0}}"
+           f".cva-grid div{{box-sizing:border-box;border:1px solid #ccc;text-align:center;"
+           f"line-height:{cell - 2}px}}"
+           f".cva-grid .cva-box{{position:absolute;box-sizing:border-box;border:3px solid #f57f17;"
+           f"background:rgba(255,213,79,.45);animation:cva-move {total}s step-end infinite}}"
+           f".cva-grid .cva-out{{position:absolute;box-sizing:border-box;width:{cell}px;height:{cell}px;"
+           f"border:3px solid #f57f17;animation:cva-move-out {total}s step-end infinite}}"
+           f".cva-calc{{position:relative;height:3em}}"
+           f".cva-calc p{{position:absolute;margin:0;opacity:0}}"
+           f".cva span{{display:inline-block}}"]
+
+    def moves(name):
+        frames = [f"{100 * i / n:.4f}%{{left:{(i % ow) * cell}px;top:{(i // ow) * cell}px}}"
+                  for i in range(n)]
+        return f"@keyframes {name}{{" + "".join(frames) + "}"
+
+    css.append(moves("cva-move"))
+    css.append(moves("cva-move-out"))
+    calcs, outs = [], []
+    for i in range(n):
+        y, x = divmod(i, ow)
+        start = f"{i * step_seconds:g}s"
+        # Calculation i: visible during its own slot only.
+        css.append(f"@keyframes cva-c{i}{{0%{{opacity:1}}{100 / n:.4f}%{{opacity:0}}}}")
+        terms = " + ".join(f"{img[y + ky][x + kx]}·" + (f"({c})" if (c := k[ky][kx]) < 0 else f"{c}")
+                           for ky in range(KSIZE) for kx in range(KSIZE))
+        calcs.append(f'<p style="animation:cva-c{i} {total}s step-end {start} infinite">'
+                     f"out[{y}][{x}] = {terms}<br>= <b>{out[y][x]}</b></p>")
+        # Output pixel i: appears in its slot and stays until the loop restarts.
+        css.append(f"@keyframes cva-o{i}{{0%{{opacity:1}}{100 * (n - i) / n:.4f}%{{opacity:0}}}}")
+        outs.append(f'<div><span style="opacity:0;animation:cva-o{i} {total}s step-end '
+                    f'{start} infinite">{out[y][x]}</span></div>')
+
+    def grid(cols, cells, extra=""):
+        return (f'<div class="cva-grid" style="--c:{cols}">' + "".join(cells) + extra + "</div>")
+
+    box = f'<div class="cva-box" style="width:{3 * cell}px;height:{3 * cell}px"></div>'
+    display(HTML(
+        "<style>" + "".join(css) + "</style><div class='cva'>"
+        "<div style='display:flex;flex-wrap:wrap;align-items:flex-start'>"
+        "<div><b>Input image</b> (6 × 8)" + grid(8, [f"<div>{v}</div>" for r in img for v in r], box)
+        + "</div><div><b>Kernel</b>" + grid(3, [f"<div>{v}</div>" for r in k for v in r])
+        + "</div><div><b>Output image</b> (4 × 6)" + grid(ow, outs, '<div class="cva-out"></div>')
+        + "</div></div><div class='cva-calc'>" + "".join(calcs) + "</div>"
+        f"<small>One output pixel every {step_seconds:g} s, then it starts again. "
+        "Put the mouse on the animation to pause it.</small></div>"))
 
 
 def step_example(seed):
