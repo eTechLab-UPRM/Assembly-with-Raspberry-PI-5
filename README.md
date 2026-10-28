@@ -42,7 +42,7 @@ are comparable.
 | Version | File | What changes |
 | --- | --- | --- |
 | Python | `conv_bench.py` | Four nested loops. Every `+` and `*` is interpreted while the program runs. |
-| C v1 column order | `src/conv.c` | The same four loops, compiled to machine code by `gcc -O2`, with the outer loop over columns: every step jumps a whole row in memory. Each C line is commented with its RISC-V (Ripes) translation. |
+| C v1 column order | `src/conv.c` | The same four loops, compiled to machine code by `gcc -O2`, with the outer loop over columns: every step jumps a whole row in memory. Its loops and operations are commented with their RISC-V (Ripes) translation. |
 | C v2 row order | `src/conv_student_c.c` | The same convolution walking the image row by row, the order it is stored in memory. **Written by the students.** |
 | ASM v1 brute force | `src/conv_student_v1.S` | A direct translation of C v2: every index is recomputed with `MUL`. **Students write its core.** |
 | ASM v2 pointers | `src/conv_asm.S` | No index arithmetic in the loop: pointers walk the image, the kernel stays in registers. |
