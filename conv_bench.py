@@ -57,12 +57,15 @@ def conv_python(img, k):
 VERSIONS = [
     # (name in the table,   library,              function)
     ("C v1 column order",   "libconv_c.so",       "conv_c_cols"),
-    ("C v2 row order",      "libconv_c.so",       "conv_c_rows"),
+    ("C v2 rows (yours)",   "libconv_student_c.so", "conv_c_rows"),
     ("ASM v1 brute force",  "libconv_asm.so",     "conv_asm_v1"),
     ("ASM v2 pointers",     "libconv_asm.so",     "conv_asm_v2"),
     ("ASM v3 MAC (yours)",  "libconv_student.so", "conv_asm_v3"),
     ("ASM v4 NEON",         "libconv_asm.so",     "conv_asm_v4"),
 ]
+
+# The versions students write in the notebook (Part 3 and Part 6).
+YOURS = {"C v2 rows (yours)", "ASM v3 MAC (yours)"}
 
 INT32_PTR = ctypes.POINTER(ctypes.c_int32)
 
@@ -235,30 +238,56 @@ def benchmark(img, k, description, reps, skip_python):
     return all(status == "OK" for *_, status in rows)
 
 
-def self_test():
-    """Small and odd sizes exercise the loop limits and the NEON tail."""
-    versions = load_versions()
-    sizes = [(3, 3), (3, 4), (4, 3), (3, 7), (5, 5), (6, 9), (7, 10), (8, 8),
-             (9, 11), (17, 9), (33, 65), (64, 67), (100, 131)]
-    failures = 0
-    for name, func, error in versions:
-        if func is None:
-            failures += 1
-            print(f"NOT BUILT {name}: {error}")
+def check_version(func, sizes):
+    """True if func gives the Python result on every (h, w) in sizes."""
     for i, (h, w) in enumerate(sizes):
         img, k = make_data(h, w, seed=i)
         flat_img, flat_k = flatten(img, k)
         ref, _ = run_python(img, k)
-        for name, func, _ in versions:
-            if func is None:
-                continue
-            out, _ = run_native(func, flat_img, flat_k, h, w)
-            if out != ref:
-                failures += 1
-                print(f"MISMATCH  {name:<20} size {h} x {w}")
-    print(f"{len(sizes)} sizes x {len(versions)} versions vs Python: "
+        out, _ = run_native(func, flat_img, flat_k, h, w)
+        if out != ref:
+            return False
+    return True
+
+
+TEST_SIZES = [(3, 3), (3, 4), (4, 3), (3, 7), (5, 5), (6, 9), (7, 10), (8, 8),
+              (9, 11), (17, 9), (33, 65), (64, 67), (100, 131)]
+
+
+def self_test():
+    """Small and odd sizes exercise the loop limits and the NEON tail.
+
+    The versions students write are reported apart: before they write them,
+    a MISMATCH there is expected and does not make the test fail."""
+    failures = 0
+    for name, func, error in load_versions():
+        if func is None:
+            status = f"NOT BUILT ({error})"
+        elif check_version(func, TEST_SIZES):
+            status = "OK"
+        else:
+            status = "MISMATCH"
+        if name in YOURS:
+            hint = "" if status == "OK" else "   <- expected until you write it in the notebook"
+            print(f"  {name:<20} {status}{hint}")
+        elif status != "OK":
+            failures += 1
+            print(f"  {name:<20} {status}")
+    given = len(VERSIONS) - len(YOURS)
+    print(f"{len(TEST_SIZES)} sizes x {given} given versions vs Python: "
           f"{'all OK' if failures == 0 else f'{failures} problems'}")
     return failures == 0
+
+
+def check_yours():
+    """Print 'OK <name>' or 'FAIL <name>' for each version students write.
+
+    Run in a separate process (see conv_demo.run_race), so that a version
+    that crashes cannot take the notebook down with it."""
+    for name, func, _ in load_versions():
+        if name in YOURS:
+            ok = func is not None and check_version(func, [(9, 11), (17, 9)])
+            print(("OK " if ok else "FAIL ") + name, flush=True)
 
 
 def main():
@@ -271,6 +300,7 @@ def main():
     p.add_argument("--skip-python", action="store_true",
                    help="do not run Python; check and compare against C v1 instead")
     p.add_argument("--test", action="store_true", help="correctness test on many sizes")
+    p.add_argument("--check-yours", action="store_true", help=argparse.SUPPRESS)
     args = p.parse_args()
 
     if platform.machine() != "aarch64":
@@ -281,6 +311,9 @@ def main():
     except RuntimeError as err:
         sys.exit(f"error: {err}")
 
+    if args.check_yours:
+        check_yours()
+        return
     if args.test:
         ok = self_test()
     else:

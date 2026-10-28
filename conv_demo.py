@@ -9,7 +9,7 @@ conv_demo.py - see the 2D convolution, in the console or in lab.ipynb.
 
 Build the libraries first with "make". The console demo uses only the Python
 standard library; lab.ipynb also uses notebook_step(), take_photo(),
-notebook_image(), build_v3() and notebook_race().
+notebook_image(), build_c_v2(), build_v3() and notebook_race().
 """
 import argparse
 import os
@@ -20,8 +20,11 @@ import threading
 import time
 from array import array
 
-from conv_bench import (EDGE_KERNEL, KSIZE, NO_PHOTO, PHOTO, PHOTO_SIZE, as_c_array, flatten,
-                        load, load_photo, load_versions, run_native, run_python, write_pgm)
+from conv_bench import (EDGE_KERNEL, KSIZE, NO_PHOTO, PHOTO, PHOTO_SIZE, YOURS, as_c_array,
+                        flatten, load, load_photo, load_versions, run_native, run_python,
+                        write_pgm)
+
+HERE = os.path.dirname(os.path.abspath(__file__))   # the lab folder
 
 # ANSI escape codes for colors and cursor movement.
 RESET, BOLD, DIM = "\033[0m", "\033[1m", "\033[2m"
@@ -200,6 +203,23 @@ def short_name(name):
     return " ".join(name.split()[:2])
 
 
+def yours_ok():
+    """Names of the student versions that are correct, checked in a separate
+    process so that one that crashes cannot take the race down with it."""
+    import subprocess
+
+    try:
+        result = subprocess.run(["python3", "conv_bench.py", "--check-yours"], cwd=HERE,
+                                capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        result = None
+    ok = {line[3:] for line in (result.stdout if result else "").splitlines()
+          if line.startswith("OK ")}
+    for name in sorted(YOURS - ok):
+        print(f"{name} is not in the race: it is not correct yet.", flush=True)
+    return ok
+
+
 def pin_to_core(core):
     """Run the calling thread only on this CPU core (Linux). Elsewhere, or if
     the core does not exist, the thread simply runs unpinned."""
@@ -224,7 +244,9 @@ def run_race(image, draw, interval=0.1):
             measured times, not run. A full bar is full_bar photos.
     Returns the final state: times, counts and whether all outputs match.
     """
-    natives = [(short_name(n), f) for n, f, _ in load_versions() if f is not None]
+    correct_yours = yours_ok()
+    natives = [(short_name(n), f) for n, f, _ in load_versions()
+               if f is not None and (n not in YOURS or n in correct_yours)]
     img = require_photo(image)
     k = EDGE_KERNEL
     h, w = len(img), len(img[0])
@@ -380,54 +402,84 @@ def race_mode(image=PHOTO):
 
 
 # ---------------------------------------------------------------------------
-# Part 5 of the notebook: the student's assembly v3.
+# Parts 3 and 6 of the notebook: the code students write.
 # ---------------------------------------------------------------------------
-HERE = os.path.dirname(os.path.abspath(__file__))
-V3_FILE = os.path.join("src", "conv_student.S")
-V3_START = "// ---- YOUR CODE STARTS HERE ----"
-V3_END = "// ---- YOUR CODE ENDS HERE ----"
+YOUR_START = "// ---- YOUR CODE STARTS HERE ----"
+YOUR_END = "// ---- YOUR CODE ENDS HERE ----"
 
 
-def build_v3(code):
-    """Put `code` (one output pixel of assembly v3) into src/conv_student.S,
-    between the YOUR CODE markers, build it with make, and run the benchmark
-    without Python. Assembler errors point to the line of `code`, not of the
-    file."""
+def build_yours(code, filename, indent=""):
+    """Put `code` between the YOUR CODE markers of src/<filename>, build it
+    with make and run the benchmark without Python. Compiler and assembler
+    errors point to the line of `code`, not of the file."""
     import re
     import subprocess
 
-    path = os.path.join(HERE, V3_FILE)
+    rel = os.path.join("src", filename)
+    path = os.path.join(HERE, rel)
     with open(path) as f:
         text = f.read()
-    if V3_START not in text or V3_END not in text:
-        raise LabError(f"{V3_FILE} lost its YOUR CODE markers. Restore it with:\n"
-                       f"  git checkout {V3_FILE}")
-    head, rest = text.split(V3_START, 1)
-    tail = rest.split(V3_END, 1)[1]
+    if YOUR_START not in text or YOUR_END not in text:
+        raise LabError(f"{rel} lost its YOUR CODE markers. Restore it with:\n"
+                       f"  git checkout {rel}")
+    head, rest = text.split(YOUR_START, 1)
+    tail = rest.split(YOUR_END, 1)[1]
     lines = code.strip("\n").split("\n")
-    first = (head + V3_START).count("\n") + 2   # file line of the first code line
+    first = (head + YOUR_START).count("\n") + 2  # file line of the first code line
     with open(path, "w") as f:
-        f.write(head + V3_START + "\n" + "\n".join(lines) + "\n        " + V3_END + tail)
+        f.write(head + YOUR_START + "\n" + "\n".join(lines) + "\n" + indent + YOUR_END + tail)
 
     print("Building...", flush=True)
     make = subprocess.run(["make"], cwd=HERE, capture_output=True, text=True)
     if make.returncode != 0:
         problems = []
-        for match in re.finditer(r"conv_student\.S:(\d+): (?:Error|error): (.*)", make.stderr):
+        pattern = re.escape(filename) + r":(\d+):(?:\d+:)? (?:Error|error): (.*)"
+        for match in re.finditer(pattern, make.stderr):
             n = int(match.group(1)) - first
             where = (f"line {n + 1} of your code: {lines[n].strip()}"
-                     if 0 <= n < len(lines) else f"{V3_FILE}, line {match.group(1)}")
+                     if 0 <= n < len(lines) else f"{rel}, line {match.group(1)}")
             problems.append(f"  {where}\n    -> {match.group(2)}")
-        raise LabError("The assembler found an error, so v3 was NOT BUILT:\n"
-                       + ("\n".join(problems) or make.stderr.strip()))
+        # Only the first two: the next ones are usually caused by the first.
+        raise LabError("The compiler found an error, so your version was NOT BUILT:\n"
+                       + ("\n".join(problems[:2]) or make.stderr.strip()))
+    print("Built.", flush=True)
+    return lines
 
-    count = sum(1 for line in lines if re.match(r"\s*madd\b", line))
-    print(f"Built. Your code has {count} madd instructions (8 when you are done).\n",
-          flush=True)
-    # Same command as the other benchmark cells of the notebook.
-    bench = subprocess.run(["python3", "conv_bench.py", "--skip-python"],
-                           cwd=HERE, capture_output=True, text=True)
+
+def run_yours_benchmark():
+    """The benchmark without Python, in its own process: if the student's
+    code crashes or never ends, the notebook survives and says why."""
+    import subprocess
+
+    try:
+        # Same command as the other benchmark cells of the notebook.
+        bench = subprocess.run(["python3", "conv_bench.py", "--skip-python"],
+                               cwd=HERE, capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        raise LabError("The benchmark did not finish in 2 minutes: your code probably "
+                       "never ends.\nCheck the loop conditions and that every loop "
+                       "variable is increased.") from None
     print(bench.stdout + bench.stderr)
+    if bench.returncode < 0:
+        raise LabError("Your code crashed the program (it read or wrote outside the "
+                       "image).\nCheck the loop limits and the indexes.")
+
+
+def build_c_v2(code):
+    """Part 3: build the student's C v2 (row order) and measure it."""
+    build_yours(code, "conv_student_c.c")
+    print()
+    run_yours_benchmark()
+
+
+def build_v3(code):
+    """Part 6: build the student's assembly v3 (one output pixel) and measure it."""
+    import re
+
+    lines = build_yours(code, "conv_student.S", indent="        ")
+    count = sum(1 for line in lines if re.match(r"\s*madd\b", line))
+    print(f"Your code has {count} madd instructions (8 when you are done).\n", flush=True)
+    run_yours_benchmark()
 
 
 # ---------------------------------------------------------------------------
@@ -525,7 +577,7 @@ def notebook_image(image=PHOTO, zoom=8, width=480):
     img = require_photo(image)
     h, w = len(img), len(img[0])
     flat_img, flat_k = flatten(img, EDGE_KERNEL)
-    out, t = run_native(load("libconv_c.so", "conv_c_rows"), flat_img, flat_k, h, w)
+    out, t = run_native(load("libconv_c.so", "conv_c_cols"), flat_img, flat_k, h, w)
     oh, ow = h - (KSIZE - 1), w - (KSIZE - 1)
 
     f = max(1, -(-w // width))                 # shrink factor, rounded up
@@ -547,7 +599,7 @@ def notebook_image(image=PHOTO, zoom=8, width=480):
         f"<p>Your photo: <b>{w} × {h} = {w * h:,} pixels</b>, each a number from 0 "
         f"(black) to 255 (white), {w * h * 4 / 1e6:.0f} MB as 32-bit integers. The "
         f"edge-detection kernel gives 0 where the brightness does not change, and a large "
-        f"value at edges. The C version (row order) computed all {oh * ow:,} output pixels "
+        f"value at edges. C v1 computed all {oh * ow:,} output pixels "
         f"in {t * 1e3:.0f} ms.</p>"
         + html_picture(small_in, "Input photo", scale=1)
         + html_picture(edges, "Output: edges (dark = strong edge)", scale=1)
@@ -613,7 +665,7 @@ def main():
         sys.exit(f"error: this lab needs a 64-bit ARM system (aarch64), "
                  f"this one is {platform.machine()}. Check 'uname -m'.")
     try:
-        load("libconv_c.so", "conv_c_rows")
+        load("libconv_c.so", "conv_c_cols")
     except RuntimeError as err:
         sys.exit(f"error: {err}")
     modes = {"1": "step", "2": "photo", "3": "race"}

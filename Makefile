@@ -10,11 +10,18 @@ CC     ?= gcc
 CFLAGS := -O2 -Wall -Wextra -fPIC -shared
 BUILD  := build
 
-all: $(BUILD)/libconv_c.so $(BUILD)/libconv_asm.so $(BUILD)/libconv_student.so
+all: $(BUILD)/libconv_c.so $(BUILD)/libconv_student_c.so $(BUILD)/libconv_asm.so \
+     $(BUILD)/libconv_student.so
 
-# C version, optimized by the compiler (-O2).
+# C v1, optimized by the compiler (-O2).
 $(BUILD)/libconv_c.so: src/conv.c | $(BUILD)
 	$(CC) $(CFLAGS) -o $@ $<
+
+# C v2, the one students write. As for v3 below, the old library is deleted
+# first. Unused variables are not reported: the starting file is empty.
+$(BUILD)/libconv_student_c.so: src/conv_student_c.c | $(BUILD)
+	rm -f $@
+	$(CC) $(CFLAGS) -Wno-unused-parameter -Wno-unused-variable -o $@ $<
 
 # Hand-written assembly, versions v1, v2 and v4. gcc runs the assembler.
 $(BUILD)/libconv_asm.so: src/conv_asm.S | $(BUILD)

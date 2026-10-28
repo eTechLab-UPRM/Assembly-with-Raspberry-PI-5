@@ -40,19 +40,28 @@ are comparable.
 | Version | File | What changes |
 | --- | --- | --- |
 | Python | `conv_bench.py` | Four nested loops. Every `+` and `*` is interpreted while the program runs. |
-| C v1 column order | `src/conv.c` | The same four loops, compiled to machine code by `gcc -O2`, with the outer loop over columns: every step jumps a whole row in memory. |
-| C v2 row order | `src/conv.c` | The same code with the two outer loops swapped, so it walks memory in the order the image is stored. |
+| C v1 column order | `src/conv.c` | The same four loops, compiled to machine code by `gcc -O2`, with the outer loop over columns: every step jumps a whole row in memory. Each C line is commented with its RISC-V (Ripes) translation. |
+| C v2 row order | `src/conv_student_c.c` | The same convolution walking the image row by row, the order it is stored in memory. **Written by the students.** |
 | ASM v1 brute force | `src/conv_asm.S` | A direct translation of the C loops: every index is recomputed with `MUL`. |
 | ASM v2 pointers | `src/conv_asm.S` | No index arithmetic in the loop: pointers walk the image, the kernel stays in registers. |
 | ASM v3 MAC | `src/conv_student.S` | v2 with each `MUL` + `ADD` pair fused into one `MADD`. **Written by the students.** |
 | ASM v4 NEON | `src/conv_asm.S` | Vector instructions compute 4 output pixels at once. |
 
-`src/conv_student.S` starts as v2 with its first `MUL` + `ADD` pair already
-fused into `MADD`, as a worked example, and 7 pairs marked `TODO`. Students do
-not edit the file by hand: in Part 5 of the notebook they edit the code of one
-output pixel in a cell, and `build_v3()` (in `conv_demo.py`) writes it
-between the file's `YOUR CODE` markers, builds it, points any assembler error
-to the line of their cell, and runs the benchmark.
+Students write two versions in notebook cells, never editing the files by
+hand:
+
+- **C v2** (Part 3): they get the function's signature and write the four
+  loops, with hints. `build_c_v2()` puts it into `src/conv_student_c.c`.
+- **ASM v3** (Part 6): `src/conv_student.S` starts as v2 with its first `MUL` +
+  `ADD` pair already fused into `MADD`, as a worked example, and 7 pairs
+  marked `TODO`; they edit the code of one output pixel. `build_v3()` puts
+  it into the file.
+
+Both functions (in `conv_demo.py`) write the code between the file's
+`YOUR CODE` markers, build it, point any compiler error to the line of the
+cell, and run the benchmark in a separate process, so code that crashes or
+never ends is reported instead of stopping the notebook. Until a student's
+version is correct, the race leaves it out.
 
 ## Setup and running the lab
 
@@ -124,8 +133,9 @@ lab.ipynb           the lab: explanations, code cells and questions
 docs/SETUP.md       setup guide for students, from a new Raspberry Pi and its camera
 conv_bench.py       Python version, runner and timing table
 conv_demo.py        camera, console demo, and the notebook's step-by-step, image and race
-src/conv.c          C versions: column order and row order
+src/conv.c          C v1 (column order), with RISC-V comments
+src/conv_student_c.c  C v2 (row order), the students' C exercise
 src/conv_asm.S      ARM64 assembly v1, v2 and v4, commented line by line
-src/conv_student.S  ARM64 assembly v3, the students' exercise
-Makefile            builds build/libconv_c.so, libconv_asm.so, libconv_student.so
+src/conv_student.S  ARM64 assembly v3, the students' assembly exercise
+Makefile            builds the four libraries in build/
 ```
