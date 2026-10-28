@@ -1,9 +1,9 @@
 /*
  * conv.c - 2D convolution in plain C: version C v1, column order.
  *
- * This is the C level of the Python -> C -> assembly lab. The Makefile
+ * This is the C level of the Python -> C -> assembly project. The Makefile
  * compiles it with gcc -O2 into build/libconv_c.so. C v2 (row order) is the
- * version YOU write in Part 3 of lab.ipynb (src/conv_student_c.c).
+ * version YOU write in Part 3 of project.ipynb (src/conv_student_c.c).
  *
  *   out[y][x] = sum over ky, kx in 0..2 of  in[y + ky][x + kx] * k[ky][kx]
  *

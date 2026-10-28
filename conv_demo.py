@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-conv_demo.py - see the 2D convolution, in the console or in lab.ipynb.
+conv_demo.py - see the 2D convolution, in the console or in project.ipynb.
 
     python3 conv_demo.py            # menu
     python3 conv_demo.py step       # the kernel sliding over a small image
@@ -8,7 +8,7 @@ conv_demo.py - see the 2D convolution, in the console or in lab.ipynb.
     python3 conv_demo.py race       # Python vs. every C and assembly version
 
 Build the libraries first with "make". The console demo uses only the Python
-standard library; lab.ipynb also uses notebook_step(), take_photo(),
+standard library; project.ipynb also uses notebook_step(), take_photo(),
 notebook_image(), build_c_v2(), build_v1(), build_v3() and notebook_race().
 """
 import argparse
@@ -24,7 +24,7 @@ from conv_bench import (EDGE_KERNEL, KSIZE, NO_PHOTO, PHOTO, PHOTO_SIZE, YOURS, 
                         flatten, load, load_photo, load_versions, run_native, run_python,
                         write_pgm)
 
-HERE = os.path.dirname(os.path.abspath(__file__))   # the lab folder
+HERE = os.path.dirname(os.path.abspath(__file__))   # the project folder
 
 # ANSI escape codes for colors and cursor movement.
 RESET, BOLD, DIM = "\033[0m", "\033[1m", "\033[2m"
@@ -115,7 +115,7 @@ def step_mode():
 
 
 # ---------------------------------------------------------------------------
-# 2. The camera photo: every part of the lab uses it.
+# 2. The camera photo: every part of the project uses it.
 # ---------------------------------------------------------------------------
 NO_CAMERA = """No camera detected. Check the camera connection:
   1. Shut the Raspberry Pi down (sudo shutdown now) and unplug the power.
@@ -128,7 +128,7 @@ Then run this again."""
 
 
 def take_photo(path=PHOTO, seconds=3):
-    """Take the grayscale photo of the lab with the Raspberry Pi camera.
+    """Take the grayscale photo of the project with the Raspberry Pi camera.
 
     A preview window shows the camera for `seconds` seconds, then the photo is
     saved as a PGM file of PHOTO_SIZE pixels. Raises LabError, with what to
@@ -503,7 +503,7 @@ def build_v3(code):
 
 
 # ---------------------------------------------------------------------------
-# Jupyter notebook versions (lab.ipynb). IPython is imported only here, so
+# Jupyter notebook versions (project.ipynb). IPython is imported only here, so
 # the console demo keeps working with the standard library alone.
 # ---------------------------------------------------------------------------
 def html_color(name):
@@ -682,7 +682,7 @@ def main():
     args = p.parse_args()
 
     if platform.machine() != "aarch64":
-        sys.exit(f"error: this lab needs a 64-bit ARM system (aarch64), "
+        sys.exit(f"error: this project needs a 64-bit ARM system (aarch64), "
                  f"this one is {platform.machine()}. Check 'uname -m'.")
     try:
         load("libconv_c.so", "conv_c_cols")

@@ -6,7 +6,7 @@ each step down in language depth buys, and how the way assembly is written
 changes its speed.
 
 It is a mini project for students, built around the
-Jupyter notebook **`lab.ipynb`**: it reads like a short book chapter, runs the
+Jupyter notebook **`project.ipynb`**: it reads like a short book chapter, runs the
 code in its cells, has students write three of the versions, and has the
 questions they answer.
 
@@ -23,7 +23,7 @@ out[y][x] = Σ (ky = 0..2) Σ (kx = 0..2)  in[y + ky][x + kx] · k[ky][kx]
 The output is `(H − 2) × (W − 2)` (no padding). As in deep-learning
 libraries, the kernel is not flipped.
 
-Every part of the lab processes a **2592 × 1944 grayscale photo** taken with
+Every part of the project processes a **2592 × 1944 grayscale photo** taken with
 the Raspberry Pi camera (`photo.pgm`), with an **edge-detection kernel**:
 
 ```
@@ -70,7 +70,7 @@ cell, and run the benchmark in a separate process, so code that crashes or
 never ends is reported instead of stopping the notebook. Until a student's
 version is correct, the race leaves it out.
 
-## Setup and running the lab
+## Setup and running the project
 
 A Raspberry Pi camera is required. It must be connected **before** the Pi is
 powered on.
@@ -88,7 +88,7 @@ cd Assembly-with-Raspberry-PI-5
 make && python3 conv_bench.py --test             # must end in "all OK"
 python3 -m venv ~/jupyter-env
 ~/jupyter-env/bin/pip install --index-url https://pypi.org/simple --resume-retries 5 --timeout 60 notebook
-~/jupyter-env/bin/jupyter notebook lab.ipynb
+~/jupyter-env/bin/jupyter notebook project.ipynb
 ```
 
 ## Without Jupyter
@@ -136,7 +136,7 @@ kernel. Photos are not committed (`.gitignore`).
 ## Files
 
 ```
-lab.ipynb           the lab: explanations, code cells and questions
+project.ipynb       the project: explanations, code cells and questions
 docs/SETUP.md       setup guide for students, from a new Raspberry Pi and its camera
 conv_bench.py       Python version, runner and timing table
 conv_demo.py        camera, console demo, and the notebook's step-by-step, image and race

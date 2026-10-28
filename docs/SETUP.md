@@ -1,8 +1,8 @@
-# Setup Guide: from a New Raspberry Pi to the Lab Notebook
+# Setup Guide: from a New Raspberry Pi to the Project Notebook
 
 Follow these steps once on your Raspberry Pi. They take about 20–30 minutes,
-most of it waiting for downloads. When you finish, you will have the lab
-notebook (`lab.ipynb`) open in the browser.
+most of it waiting for downloads. When you finish, you will have the project
+notebook (`project.ipynb`) open in the browser.
 
 Type every command in a **terminal** on the Pi (menu → Accessories →
 Terminal, or connect over SSH). Lines that start with `#` are comments: you
@@ -13,7 +13,7 @@ do not need to type them.
 - A Raspberry Pi 5 (a Pi 4, 3 or Zero 2 W also works, only slower).
 - A microSD card of 16 GB or more, the power supply, and a heatsink or fan.
 - An internet connection (Wi-Fi or cable).
-- A Raspberry Pi camera with a Pi 5 camera cable. The lab works on a photo
+- A Raspberry Pi camera with a Pi 5 camera cable. The project works on a photo
   taken with it, so the camera is required.
 - A computer with [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
   to prepare the SD card, if the Pi does not have a system yet.
@@ -26,7 +26,7 @@ Skip this step if your Pi already starts into Raspberry Pi OS **64-bit**
 1. Open Raspberry Pi Imager on your computer and insert the microSD card.
 2. **Device:** your Raspberry Pi model.
 3. **Operating system:** *Raspberry Pi OS (64-bit)*. Do not choose the
-   32-bit version: the assembly code of this lab is for 64-bit ARM.
+   32-bit version: the assembly code of this project is for 64-bit ARM.
 4. **Storage:** the microSD card.
 5. When Imager offers to customize the settings, set a username and
    password, your Wi-Fi network, and (optional) enable SSH.
@@ -49,14 +49,14 @@ sudo apt update
 sudo apt install -y git build-essential python3-venv
 ```
 
-- `git` downloads the lab files.
+- `git` downloads the project files.
 - `build-essential` brings `gcc` (the C compiler and ARM assembler) and
   `make`.
 - `python3-venv` lets you install Jupyter in its own folder (Step 5).
 
 Python 3 is already part of Raspberry Pi OS.
 
-## Step 4. Download the lab
+## Step 4. Download the project
 
 ```sh
 cd ~
@@ -104,7 +104,7 @@ already downloaded are kept.
 
 ## Step 6. Connect the camera
 
-The lab works on a photo taken with the Raspberry Pi camera, so this step is
+The project works on a photo taken with the Raspberry Pi camera, so this step is
 required. **The camera must be connected before the Pi is powered on**: the
 Pi only detects it when it starts.
 
@@ -131,18 +131,18 @@ It must list a camera, for example `0 : ov5647 [2592x1944 ...]`. If it says
 rpicam-still -n -o ~/test.jpg
 ```
 
-## Step 7. Open the lab notebook
+## Step 7. Open the project notebook
 
 ```sh
 cd ~/Assembly-with-Raspberry-PI-5
-~/jupyter-env/bin/jupyter notebook lab.ipynb
+~/jupyter-env/bin/jupyter notebook project.ipynb
 ```
 
 The notebook opens in the Pi's browser. Leave the terminal open while you
 work: it is running Jupyter. To stop Jupyter at the end, save the notebook,
 go back to the terminal and press **Ctrl + C**, then `y`.
 
-From now on, every time you want to work on the lab you only repeat Step 7.
+From now on, every time you want to work on the project you only repeat Step 7.
 
 ### Working from another computer (optional)
 
@@ -150,7 +150,7 @@ If you connect to the Pi over SSH instead of using its screen:
 
 ```sh
 cd ~/Assembly-with-Raspberry-PI-5
-~/jupyter-env/bin/jupyter notebook lab.ipynb --no-browser --ip=0.0.0.0
+~/jupyter-env/bin/jupyter notebook project.ipynb --no-browser --ip=0.0.0.0
 ```
 
 Jupyter prints an address like `http://127.0.0.1:8888/tree?token=...`.
@@ -196,7 +196,7 @@ python3 -m venv ~/jupyter-env
 # check the camera (connect it with the Pi off, then power on)
 rpicam-hello --list-cameras                      # must list the camera
 
-# every time you work on the lab
+# every time you work on the project
 cd ~/Assembly-with-Raspberry-PI-5
-~/jupyter-env/bin/jupyter notebook lab.ipynb
+~/jupyter-env/bin/jupyter notebook project.ipynb
 ```

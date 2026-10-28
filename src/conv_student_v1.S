@@ -1,7 +1,7 @@
 /*
  * conv_student_v1.S - YOUR assembly version: conv_asm_v1 (brute force).
  *
- * You do not need to edit this file by hand: Part 4 of lab.ipynb has your
+ * You do not need to edit this file by hand: Part 4 of project.ipynb has your
  * part of the function in a notebook cell, and build_v1() writes it between
  * the two "YOUR CODE" markers below, builds it and measures it.
  *

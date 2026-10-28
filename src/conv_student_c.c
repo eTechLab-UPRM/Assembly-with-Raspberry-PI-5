@@ -1,7 +1,7 @@
 /*
  * conv_student_c.c - YOUR C version: C v2, row order.
  *
- * You do not need to edit this file by hand: Part 3 of lab.ipynb has the
+ * You do not need to edit this file by hand: Part 3 of project.ipynb has the
  * function in a notebook cell, and build_c_v2() writes it between the two
  * "YOUR CODE" markers below, builds it and measures it.
  *

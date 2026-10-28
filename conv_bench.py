@@ -27,7 +27,7 @@ from array import array
 HERE = os.path.dirname(os.path.abspath(__file__))
 BUILD = os.path.join(HERE, "build")
 KSIZE = 3
-PHOTO = "photo.pgm"           # the camera photo every part of the lab uses
+PHOTO = "photo.pgm"           # the camera photo every part of the project uses
 PHOTO_SIZE = (2592, 1944)     # width x height: Python takes about 9 s on a Pi 5
 
 
@@ -121,7 +121,7 @@ def make_data(h, w, seed):
     return img, k
 
 
-# The kernel of the lab: it detects edges. On a
+# The kernel of the project: it detects edges. On a
 # flat area the 9 products cancel out (8 * centre - 8 neighbours = 0); where
 # the brightness changes, the result is large.
 EDGE_KERNEL = [[-1, -1, -1],
@@ -162,7 +162,7 @@ def write_pgm(path, rows):
 
 
 NO_PHOTO = ("{} not found: take the photo with the camera first "
-            "(Part 1 of lab.ipynb, or: python3 conv_demo.py photo).")
+            "(Part 1 of project.ipynb, or: python3 conv_demo.py photo).")
 
 
 def load_photo(image=PHOTO):
@@ -304,7 +304,7 @@ def main():
     args = p.parse_args()
 
     if platform.machine() != "aarch64":
-        sys.exit(f"error: this lab needs a 64-bit ARM system (aarch64), "
+        sys.exit(f"error: this project needs a 64-bit ARM system (aarch64), "
                  f"this one is {platform.machine()}. Check 'uname -m'.")
     try:
         load(*VERSIONS[0][1:])                 # C is the reference: it must exist
