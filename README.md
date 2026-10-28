@@ -59,7 +59,7 @@ hand:
   core: the coefficient load, the multiply-add and the store of the output
   pixel, about 9 instructions. `build_v1()` puts it into
   `src/conv_student_v1.S`.
-- **ASM v3** (Part 7): `src/conv_student.S` starts as v2 with its first `MUL` +
+- **ASM v3** (Part 6): `src/conv_student.S` starts as v2 with its first `MUL` +
   `ADD` pair already fused into `MADD`, as a worked example, and 7 pairs
   marked `TODO`; they edit the code of one output pixel. `build_v3()` puts
   it into the file.
@@ -101,6 +101,7 @@ python3 conv_bench.py --test          # correctness check, must end with "all OK
 python3 conv_demo.py photo            # take the photo: photo.pgm
 python3 conv_bench.py                 # all versions on the photo
 python3 conv_bench.py --skip-python   # quick: compare against C v1 instead
+python3 conv_bench.py --only "C v1"   # one version only (Python, C v1, ... ASM v4)
 python3 conv_demo.py                  # interactive console demo
 ```
 

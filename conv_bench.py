@@ -9,6 +9,7 @@ the time of each version is printed in one table.
     python3 conv_demo.py photo            # take the photo first (photo.pgm)
     python3 conv_bench.py                 # all versions on photo.pgm
     python3 conv_bench.py --skip-python   # skip Python, compare against C v1
+    python3 conv_bench.py --only "C v1"   # time only one version
     python3 conv_bench.py --test          # correctness test on many sizes
 
 Build the libraries first with "make". Runs on a 64-bit Raspberry Pi
@@ -191,6 +192,45 @@ def load_versions():
     return loaded
 
 
+def short_name(name):
+    """'ASM v3 MAC (yours)' -> 'ASM v3', 'C v1 column order' -> 'C v1'."""
+    return " ".join(name.split()[:2])
+
+
+def measure_one(img, k, description, reps, which):
+    """Time only one version (`which`: "Python", "C v1", ... "ASM v4") and
+    print only its time. C and assembly are checked against C v1."""
+    h, w = len(img), len(img[0])
+    macs = (h - 2) * (w - 2) * KSIZE * KSIZE
+    print(f"Image : {w} x {h} ({description}), {macs / 1e6:.1f} M multiply-adds")
+    if which.lower() == "python":
+        print("Running Python (about 9 seconds)...", flush=True)
+        _, t = run_python(img, k)
+        print(f"\nPython: {t * 1e3:.2f} ms")
+        return True
+
+    names = {short_name(n).lower(): n for n, _, _ in VERSIONS}
+    if which.lower() not in names:
+        sys.exit(f"error: unknown version '{which}'. Choose from: Python, "
+                 + ", ".join(short_name(n) for n, _, _ in VERSIONS))
+    name = names[which.lower()]
+    func = dict((n, f) for n, f, _ in load_versions())[name]
+    if func is None:
+        print(f"\n{name}: NOT BUILT. Run 'make' and fix any error it shows.")
+        return False
+    flat_img, flat_k = flatten(img, k)
+    ref, _ = run_native(load(*VERSIONS[0][1:]), flat_img, flat_k, h, w)
+    times = []
+    for _ in range(reps):
+        out, t = run_native(func, flat_img, flat_k, h, w)
+        times.append(t)
+    status = "OK" if out == ref else "MISMATCH"
+    check = "" if name == VERSIONS[0][0] else f"   check: {status}"
+    print(f"\n{name}: {statistics.median(times) * 1e3:.2f} ms "
+          f"(median of {reps} runs){check}")
+    return status == "OK"
+
+
 def benchmark(img, k, description, reps, skip_python):
     """Time every version on img with kernel k and print the table."""
     versions = load_versions()
@@ -299,6 +339,8 @@ def main():
                    help=f"grayscale photo to process (default {PHOTO})")
     p.add_argument("--skip-python", action="store_true",
                    help="do not run Python; check and compare against C v1 instead")
+    p.add_argument("--only", metavar="VERSION",
+                   help='measure only this version: "Python", "C v1", "C v2", "ASM v1" ... "ASM v4"')
     p.add_argument("--test", action="store_true", help="correctness test on many sizes")
     p.add_argument("--check-yours", action="store_true", help=argparse.SUPPRESS)
     args = p.parse_args()
@@ -324,7 +366,10 @@ def main():
         if min(len(img), len(img[0])) < KSIZE:
             sys.exit("error: the image must be at least 3 x 3")
         description = f"photo {os.path.basename(args.image)}, edge-detection kernel"
-        ok = benchmark(img, EDGE_KERNEL, description, args.reps, args.skip_python)
+        if args.only:
+            ok = measure_one(img, EDGE_KERNEL, description, args.reps, args.only)
+        else:
+            ok = benchmark(img, EDGE_KERNEL, description, args.reps, args.skip_python)
     sys.exit(0 if ok else 1)
 
 

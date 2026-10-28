@@ -171,9 +171,9 @@ be on the same network.
 | `pip install` fails with `incomplete-download` | Slow connection. Run the Step 5 command again; it continues where it stopped. |
 | `pip` says `no such option: --resume-retries` | Old `pip`. Run `~/jupyter-env/bin/pip install --upgrade pip` and repeat Step 5. |
 | `jupyter: No such file or directory` | Jupyter is not installed yet, or you typed `jupyter` alone. Use the full path `~/jupyter-env/bin/jupyter` (Step 7). |
-| Part 3, 4 or 7 says `NOT BUILT` | A mistake in your code. The message shows the line of your code and what is wrong: fix it in the cell and run the cell again. |
+| Part 3, 4 or 6 says `NOT BUILT` | A mistake in your code. The message shows the line of your code and what is wrong: fix it in the cell and run the cell again. |
 | A row of the table says `NOT BUILT` | That library did not build. Run `make` and read its error. |
-| A row of the table says `MISMATCH` | That version computes a wrong result. In Parts 3 and 4, check the loop limits and the indexes; in Part 7, check the order of the `madd` operands. |
+| A row of the table says `MISMATCH` | That version computes a wrong result. In Parts 3 and 4, check the loop limits and the indexes; in Part 6, check the order of the `madd` operands. |
 | An exercise cell says your code *never ends* or *crashed the program* | A loop never reaches its limit (a counter not increased, or a jump to the wrong label), or an index goes outside the image. Fix the code in the cell and run it again. |
 | You want to undo your changes to an exercise | Ctrl + Z in the exercise cell undoes your edits. If a file itself is broken, `git checkout src/conv_student_c.c src/conv_student_v1.S src/conv_student.S` restores them. |
 | Times look much slower than expected | Close other programs, check the heatsink or fan, and run `vcgencmd get_throttled`: `throttled=0x0` means the CPU is not being slowed down by heat or power. |

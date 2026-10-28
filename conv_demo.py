@@ -22,7 +22,7 @@ from array import array
 
 from conv_bench import (EDGE_KERNEL, KSIZE, NO_PHOTO, PHOTO, PHOTO_SIZE, YOURS, as_c_array,
                         flatten, load, load_photo, load_versions, run_native, run_python,
-                        write_pgm)
+                        short_name, write_pgm)
 
 HERE = os.path.dirname(os.path.abspath(__file__))   # the project folder
 
@@ -196,11 +196,6 @@ SCALE_STEPS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000]
 def bar(fraction, width=BAR_WIDTH):
     filled = min(width, int(fraction * width))
     return "█" * filled + "░" * (width - filled)
-
-
-def short_name(name):
-    """'ASM v3 MAC (yours)' -> 'ASM v3', 'C v1 column order' -> 'C v1'."""
-    return " ".join(name.split()[:2])
 
 
 def check_yours_output():
@@ -451,7 +446,7 @@ def build_yours(code, filename, indent=""):
 
 
 def run_yours_benchmark(name):
-    """The benchmark without Python, in its own process: if the student's
+    """Time only version `name`, in its own process: if the student's
     code crashes or never ends, the notebook survives and says why. Then a
     check of version `name` with random images and kernels: the edge kernel
     of the photo is symmetric, so it cannot catch a transposed kernel."""
@@ -459,7 +454,7 @@ def run_yours_benchmark(name):
 
     try:
         # Same command as the other benchmark cells of the notebook.
-        bench = subprocess.run(["python3", "conv_bench.py", "--skip-python"],
+        bench = subprocess.run(["python3", "conv_bench.py", "--only", short_name(name)],
                                cwd=HERE, capture_output=True, text=True, timeout=120)
     except subprocess.TimeoutExpired:
         raise LabError("The benchmark did not finish in 2 minutes: your code probably "
@@ -493,7 +488,7 @@ def build_v1(code):
 
 
 def build_v3(code):
-    """Part 7: build the student's assembly v3 (one output pixel) and measure it."""
+    """Part 6: build the student's assembly v3 (one output pixel) and measure it."""
     import re
 
     lines = build_yours(code, "conv_student.S", indent="        ")

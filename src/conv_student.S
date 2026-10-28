@@ -1,7 +1,7 @@
 /*
  * conv_student.S - YOUR assembly version: conv_asm_v3 (MAC).
  *
- * You do not need to edit this file by hand: Part 7 of project.ipynb has the
+ * You do not need to edit this file by hand: Part 6 of project.ipynb has the
  * code for one output pixel in a notebook cell, and build_v3() writes it
  * between the two "YOUR CODE" markers below, builds it and measures it.
  *
