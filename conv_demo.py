@@ -655,99 +655,156 @@ def notebook_step(y, x, seed=4082):
         + table(out, lambda r, c: (r, c) == (y, x))))
 
 
-# A handwritten "2", 12 x 12 pixels: 255 is the white paper, 25 the ink.
-DIGIT = [
-    [255, 255, 255, 255, 255, 217, 217, 255, 255, 255, 255, 255],
-    [255, 255, 255, 204,  51,  25,  25,  51, 204, 255, 255, 255],
-    [255, 255, 236,  44,  25,  95,  95,  25,  44, 242, 255, 255],
-    [255, 255, 185,  25, 134, 255, 255, 134,  25, 153, 255, 255],
-    [255, 255, 249, 191, 249, 255, 255, 172,  25, 140, 255, 255],
-    [255, 255, 255, 255, 255, 255, 236,  63,  25, 198, 255, 255],
-    [255, 255, 255, 255, 255, 217,  57,  25, 108, 255, 255, 255],
-    [255, 255, 255, 255, 191,  44,  25, 121, 255, 255, 255, 255],
-    [255, 255, 255, 146,  25,  25,  82, 178, 191, 223, 255, 255],
-    [255, 255, 198,  25,  25,  25,  25,  25,  25,  25, 217, 255],
-    [255, 255, 249, 146, 140, 146, 178, 140, 134, 114, 242, 255],
-    [255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255],
+# Pixel-art Mario, 12 x 16, with one pixel of sky around it so the output
+# (2 pixels smaller) still shows the whole outline. Each letter is a colour.
+MARIO = [
+    "..............",
+    "....RRRRR.....",
+    "...RRRRRRRRR..",
+    "...BBBSSBS....",
+    "..BSBSSSBSSS..",
+    "..BSBBSSSBSSS.",
+    "..BBSSSSBBBB..",
+    "....SSSSSSS...",
+    "...BBRBBB.....",
+    "..BBBRBBRBBB..",
+    ".BBBBRRRRBBBB.",
+    ".SSBRYRRYRBSS.",
+    ".SSSRRRRRRSSS.",
+    ".SSRRRRRRRRSS.",
+    "...RRR..RRR...",
+    "..BBB....BBB..",
+    ".BBBB....BBBB.",
+    "..............",
 ]
+# The colour of each letter, and the gray number the convolution uses for it.
+MARIO_COLORS = {".": ("sky", "#5c94fc", 200), "R": ("red", "#d82800", 90),
+                "B": ("brown", "#7c3c00", 40), "S": ("skin", "#fca044", 160),
+                "Y": ("yellow", "#ffd800", 250)}
 
 
-def notebook_animation(image=DIGIT, kernel=EDGE_KERNEL, step_seconds=0.4, cell=32):
-    """Animate the kernel sliding over a small image (a handwritten "2").
+def notebook_animation(art=MARIO, colors=MARIO_COLORS, kernel=EDGE_KERNEL, scale=2,
+                       slow=0.5, fast=0.03, cell=10):
+    """Animate the kernel sliding over a pixel-art Mario.
 
-    Pure HTML and CSS (no JavaScript), so it also moves in the exported HTML.
-    Each output pixel gets one time slot: the window moves there, its
-    calculation shows, and the output pixel appears. The mouse pauses it.
+    Each colour is one gray number and every pixel of the drawing is `scale`
+    x `scale` image pixels, so flat areas give 0 and the edge-detection
+    kernel draws Mario's outline. The first output row goes slowly (`slow`
+    seconds per pixel, with a zoom on the 9 numbers), the rest fast. Pure
+    HTML and CSS (no JavaScript), so it also moves in the exported HTML.
     """
     from IPython.display import HTML, display
 
+    big = [row for row in art for _ in range(scale)]
+    big = ["".join(c * scale for c in row) for row in big]
+    image = [[colors[c][2] for c in row] for row in big]
     h, w = len(image), len(image[0])
     flat, _ = run_python(image, kernel)
     oh, ow = h - (KSIZE - 1), w - (KSIZE - 1)
     out = [list(flat[r * ow:(r + 1) * ow]) for r in range(oh)]
     top = max(abs(v) for row in out for v in row) or 1
     n = oh * ow
-    total = n * step_seconds
 
-    def gray(v):
-        return f"background:rgb({v},{v},{v});color:{'#000' if v > 127 else '#fff'}"
-
-    css = [f".cva{{position:relative;font-family:monospace;color:#000;background:#fff;"
-           f"padding:12px;display:inline-block;line-height:normal}}"
-           f".cva:hover *{{animation-play-state:paused}}"
-           f".cva-grid{{position:relative;display:grid;grid-template-columns:repeat(var(--c),{cell}px);"
-           f"grid-auto-rows:{cell}px;margin:4px 32px 12px 0;font-size:9px}}"
-           f".cva-grid div{{box-sizing:border-box;border:1px solid #ccc;text-align:center;"
-           f"line-height:{cell - 2}px}}"
-           f".cva-grid .cva-k{{font-size:13px}}"
-           f".cva-grid .cva-box{{position:absolute;box-sizing:border-box;border:3px solid #f57f17;"
-           f"background:rgba(255,213,79,.35);animation:cva-move {total}s step-end infinite}}"
-           f".cva-grid .cva-out{{position:absolute;box-sizing:border-box;width:{cell}px;"
-           f"height:{cell}px;border:3px solid #f57f17;animation:cva-move-out {total}s step-end "
-           f"infinite}}"
-           f".cva-calc{{position:relative;height:3em}}"
-           f".cva-calc p{{position:absolute;margin:0;opacity:0}}"]
-
-    def moves(name):
-        frames = [f"{100 * i / n:.4f}%{{left:{(i % ow) * cell}px;top:{(i // ow) * cell}px}}"
-                  for i in range(n)]
-        return f"@keyframes {name}{{" + "".join(frames) + "}"
-
-    css.append(moves("cva-move"))
-    css.append(moves("cva-move-out"))
-    calcs, outs = [], []
+    # Slot i starts at t[i]; the first row is slow, the rest fast, then a
+    # pause on the finished output before it starts again.
+    t = [0.0]
     for i in range(n):
-        y, x = divmod(i, ow)
-        start = f"{i * step_seconds:g}s"
-        # Calculation i: visible during its own slot only.
-        css.append(f"@keyframes cva-c{i}{{0%{{opacity:1}}{100 / n:.4f}%{{opacity:0}}}}")
-        terms = " + ".join(f"{image[y + ky][x + kx]}·" + (f"({c})" if (c := kernel[ky][kx]) < 0 else f"{c}")
-                           for ky in range(KSIZE) for kx in range(KSIZE))
-        calcs.append(f'<p style="animation:cva-c{i} {total}s step-end {start} infinite">'
-                     f"out[{y}][{x}] = {terms}<br>= <b>{out[y][x]}</b></p>")
-        # Output pixel i: appears in its slot and stays until the loop restarts.
-        # Shaded like the photo's output: dark = strong edge.
-        css.append(f"@keyframes cva-o{i}{{0%{{opacity:1}}{100 * (n - i) / n:.4f}%{{opacity:0}}}}")
-        shade = 255 - min(255, abs(out[y][x]) * 255 // top)
-        outs.append(f'<div><div style="{gray(shade)};border:0;height:100%;opacity:0;'
-                    f'animation:cva-o{i} {total}s step-end {start} infinite">{out[y][x]}</div></div>')
+        t.append(t[-1] + (slow if i < ow else fast))
+    total = t[n] + 3
+    pct = [f"{100 * v / total:.3f}%" for v in t] + ["100%"]
+
+    def keyframes(name, style):
+        """One keyframe per slot (style(i) for slot i), then style(n) at the end."""
+        return (f"@keyframes {name}{{" + "".join(f"{pct[i]}{{{style(i)}}}" for i in range(n + 1))
+                + "}")
+
+    def pos(i):
+        y, x = divmod(min(i, n - 1), ow)
+        return y, x
+
+    css = [".cva{font-family:monospace;color:#000;background:#fff;padding:12px;"
+           "display:inline-block;line-height:normal}"
+           ".cva:hover *{animation-play-state:paused}"
+           ".cva-row{display:flex;flex-wrap:wrap;align-items:flex-start;gap:24px}"
+           f".cva-grid{{position:relative;display:grid;grid-template-columns:repeat(var(--c),{cell}px);"
+           f"grid-auto-rows:{cell}px;margin-top:4px}}"
+           f".cva-anim{{position:absolute;box-sizing:border-box;animation:var(--a) {total:.2f}s "
+           f"step-end infinite}}"
+           ".cva-zoom{position:relative;width:300px;height:110px;margin-top:4px}"
+           ".cva-zoom>div{position:absolute;opacity:0}"
+           ".cva table{border-collapse:collapse;display:inline-table;vertical-align:middle}"
+           ".cva td{width:30px;height:30px;text-align:center;border:1px solid #999;padding:0}"
+           ".cva .op{font-size:22px;padding:0 6px;vertical-align:middle}",
+           # The yellow window over the input.
+           keyframes("cva-win", lambda i: f"left:{pos(i)[1] * cell}px;top:{pos(i)[0] * cell}px"),
+           # The output pixel being computed.
+           keyframes("cva-cur", lambda i: (f"left:{pos(i)[1] * cell}px;top:{pos(i)[0] * cell}px"
+                                           if i < n else "left:0;top:0;opacity:0")),
+           # Two covers hide what is not computed yet: the rest of the
+           # current row, and the rows below it.
+           keyframes("cva-row", lambda i: (f"left:{(pos(i)[1] + 1) * cell}px;top:{pos(i)[0] * cell}px;"
+                                           f"width:{(ow - pos(i)[1] - 1) * cell}px;height:{cell}px"
+                                           if i < n else "width:0;height:0")),
+           keyframes("cva-below", lambda i: (f"left:0;top:{(pos(i)[0] + 1) * cell}px;"
+                                             f"width:{ow * cell}px;height:{(oh - pos(i)[0] - 1) * cell}px"
+                                             if i < n else "width:0;height:0"))]
+
+    def show(name, a, b):
+        """Visible from slot a to slot b only."""
+        css.append(f"@keyframes {name}{{0%{{opacity:0}}{pct[a]}{{opacity:1}}{pct[b]}{{opacity:0}}}}")
+        return f'style="animation:{name} {total:.2f}s step-end infinite"'
+
+    zooms = []
+    for x in range(ow):                                   # the slow first row
+        tds = "".join(
+            "<tr>" + "".join(
+                f'<td style="text-align:center;background:{colors[c][1]};'
+                f'color:{"#000" if colors[c][2] > 120 else "#fff"}">'
+                f"{colors[c][2]}</td>" for c in big[ky][x:x + KSIZE]) + "</tr>"
+            for ky in range(KSIZE))
+        zooms.append(f"<div {show(f'cva-z{x}', x, x + 1)}><table>{tds}</table>"
+                     f'<span class="op">×</span>kernel<span class="op">=</span>'
+                     f'<b style="font-size:20px">{out[0][x]}</b><br>'
+                     f"<small>out[0][{x}]: each pixel times the kernel number on top of it, "
+                     f"then add the 9</small></div>")
+    zooms.append(f"<div {show('cva-ff', ow, n)}><b>⏩ Fast forward:</b> the same 9 multiply-adds "
+                 f"for each of the other {n - ow:,} output pixels.</div>")
+    zooms.append(f"<div {show('cva-done', n, n + 1)}><b>Done:</b> {n:,} output pixels, "
+                 f"{n * KSIZE * KSIZE:,} multiply-adds.</div>")
+
+    def edge(v):
+        g = 255 - min(255, abs(v) * 255 // top)          # dark = strong edge
+        return f"rgb({g},{g},{g})"
 
     def grid(cols, cells, extra=""):
         return f'<div class="cva-grid" style="--c:{cols}">' + "".join(cells) + extra + "</div>"
 
-    box = f'<div class="cva-box" style="width:{3 * cell}px;height:{3 * cell}px"></div>'
+    def anim(name, style=""):
+        return f'<div class="cva-anim" style="--a:{name};{style}"></div>'
+
+    ktable = "".join("<tr>" + "".join(f'<td style="text-align:center;background:#fff">{v}</td>' for v in row) + "</tr>" for row in kernel)
+    legend = " ".join(
+        f'<span style="display:inline-block;width:12px;height:12px;background:{color};'
+        f'border:1px solid #999"></span> {name} = {gray}'
+        for name, color, gray in colors.values())
     display(HTML(
-        "<style>" + "".join(css) + "</style><div class='cva'>"
-        "<div style='display:flex;flex-wrap:wrap;align-items:flex-start'>"
+        "<style>" + "".join(css) + "</style><div class='cva'><div class='cva-row'>"
         f"<div><b>Input image</b> ({h} × {w})"
-        + grid(w, [f'<div style="{gray(v)}">{v}</div>' for r in image for v in r], box)
-        + "</div><div><b>Kernel</b>"
-        + grid(KSIZE, [f'<div class="cva-k">{v}</div>' for r in kernel for v in r])
-        + f"</div><div><b>Output image</b> ({oh} × {ow}, dark = strong edge)"
-        + grid(ow, outs, '<div class="cva-out"></div>')
-        + "</div></div><div class='cva-calc'>" + "".join(calcs) + "</div>"
-        f"<small>One output pixel every {step_seconds:g} s, then it starts again. "
-        "Put the mouse on the animation to pause it.</small></div>"))
+        + grid(w, [f'<div style="background:{colors[c][1]}"></div>' for row in big for c in row],
+               anim("cva-win", f"width:{3 * cell}px;height:{3 * cell}px;"
+                    "border:2px solid #ffeb3b;outline:1px solid #000"))
+        + "</div><div><b>Kernel</b> (edge detection)<br><table style='margin:4px 0 16px'>"
+        + ktable + "</table><br><b>Zoom on the yellow window</b><div class='cva-zoom'>"
+        + "".join(zooms) + "</div></div>"
+        f"<div><b>Output image</b> ({oh} × {ow}, dark = strong edge)"
+        + grid(ow, [f'<div style="background:{edge(v)}"></div>' for row in out for v in row],
+               anim("cva-row", "background:#e8eef8") + anim("cva-below", "background:#e8eef8")
+               + anim("cva-cur", f"width:{cell}px;height:{cell}px;border:2px solid #f57f17"))
+        + f"</div></div><p style='margin:8px 0 0'>The convolution only sees numbers: each "
+        f"colour is one gray number. {legend}</p>"
+        f"<small>The first row goes slowly ({slow:g} s per output pixel), then it speeds up; "
+        f"{total:.0f} s in all, then it starts again. Put the mouse on the animation to "
+        "pause it.</small></div>"))
 
 
 def step_example(seed):
