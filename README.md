@@ -5,7 +5,7 @@ timed on a photo taken with the Raspberry Pi camera. The goal is to see how much
 each step down in language depth buys, and how the way assembly is written
 changes its speed.
 
-It is a mini project for students (two to three weeks), built around the
+It is a mini project for students, built around the
 Jupyter notebook **`lab.ipynb`**: it reads like a short book chapter, runs the
 code in its cells, has students write three of the versions, and has the
 questions they answer.
