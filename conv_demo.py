@@ -655,8 +655,25 @@ def notebook_step(y, x, seed=4082):
         + table(out, lambda r, c: (r, c) == (y, x))))
 
 
-def notebook_animation(seed=4082, step_seconds=1.0, cell=32):
-    """Animate the kernel sliding over the 6 x 8 example of notebook_step.
+# A handwritten "2", 12 x 12 pixels: 255 is the white paper, 25 the ink.
+DIGIT = [
+    [255, 255, 255, 255, 255, 217, 217, 255, 255, 255, 255, 255],
+    [255, 255, 255, 204,  51,  25,  25,  51, 204, 255, 255, 255],
+    [255, 255, 236,  44,  25,  95,  95,  25,  44, 242, 255, 255],
+    [255, 255, 185,  25, 134, 255, 255, 134,  25, 153, 255, 255],
+    [255, 255, 249, 191, 249, 255, 255, 172,  25, 140, 255, 255],
+    [255, 255, 255, 255, 255, 255, 236,  63,  25, 198, 255, 255],
+    [255, 255, 255, 255, 255, 217,  57,  25, 108, 255, 255, 255],
+    [255, 255, 255, 255, 191,  44,  25, 121, 255, 255, 255, 255],
+    [255, 255, 255, 146,  25,  25,  82, 178, 191, 223, 255, 255],
+    [255, 255, 198,  25,  25,  25,  25,  25,  25,  25, 217, 255],
+    [255, 255, 249, 146, 140, 146, 178, 140, 134, 114, 242, 255],
+    [255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255],
+]
+
+
+def notebook_animation(image=DIGIT, kernel=EDGE_KERNEL, step_seconds=0.4, cell=32):
+    """Animate the kernel sliding over a small image (a handwritten "2").
 
     Pure HTML and CSS (no JavaScript), so it also moves in the exported HTML.
     Each output pixel gets one time slot: the window moves there, its
@@ -664,24 +681,32 @@ def notebook_animation(seed=4082, step_seconds=1.0, cell=32):
     """
     from IPython.display import HTML, display
 
-    img, k, out = step_example(seed)
-    oh, ow = len(out), len(out[0])
+    h, w = len(image), len(image[0])
+    flat, _ = run_python(image, kernel)
+    oh, ow = h - (KSIZE - 1), w - (KSIZE - 1)
+    out = [list(flat[r * ow:(r + 1) * ow]) for r in range(oh)]
+    top = max(abs(v) for row in out for v in row) or 1
     n = oh * ow
     total = n * step_seconds
+
+    def gray(v):
+        return f"background:rgb({v},{v},{v});color:{'#000' if v > 127 else '#fff'}"
+
     css = [f".cva{{position:relative;font-family:monospace;color:#000;background:#fff;"
            f"padding:12px;display:inline-block;line-height:normal}}"
            f".cva:hover *{{animation-play-state:paused}}"
            f".cva-grid{{position:relative;display:grid;grid-template-columns:repeat(var(--c),{cell}px);"
-           f"grid-auto-rows:{cell}px;margin:4px 32px 12px 0}}"
+           f"grid-auto-rows:{cell}px;margin:4px 32px 12px 0;font-size:9px}}"
            f".cva-grid div{{box-sizing:border-box;border:1px solid #ccc;text-align:center;"
            f"line-height:{cell - 2}px}}"
+           f".cva-grid .cva-k{{font-size:13px}}"
            f".cva-grid .cva-box{{position:absolute;box-sizing:border-box;border:3px solid #f57f17;"
-           f"background:rgba(255,213,79,.45);animation:cva-move {total}s step-end infinite}}"
-           f".cva-grid .cva-out{{position:absolute;box-sizing:border-box;width:{cell}px;height:{cell}px;"
-           f"border:3px solid #f57f17;animation:cva-move-out {total}s step-end infinite}}"
+           f"background:rgba(255,213,79,.35);animation:cva-move {total}s step-end infinite}}"
+           f".cva-grid .cva-out{{position:absolute;box-sizing:border-box;width:{cell}px;"
+           f"height:{cell}px;border:3px solid #f57f17;animation:cva-move-out {total}s step-end "
+           f"infinite}}"
            f".cva-calc{{position:relative;height:3em}}"
-           f".cva-calc p{{position:absolute;margin:0;opacity:0}}"
-           f".cva span{{display:inline-block}}"]
+           f".cva-calc p{{position:absolute;margin:0;opacity:0}}"]
 
     def moves(name):
         frames = [f"{100 * i / n:.4f}%{{left:{(i % ow) * cell}px;top:{(i // ow) * cell}px}}"
@@ -696,25 +721,30 @@ def notebook_animation(seed=4082, step_seconds=1.0, cell=32):
         start = f"{i * step_seconds:g}s"
         # Calculation i: visible during its own slot only.
         css.append(f"@keyframes cva-c{i}{{0%{{opacity:1}}{100 / n:.4f}%{{opacity:0}}}}")
-        terms = " + ".join(f"{img[y + ky][x + kx]}·" + (f"({c})" if (c := k[ky][kx]) < 0 else f"{c}")
+        terms = " + ".join(f"{image[y + ky][x + kx]}·" + (f"({c})" if (c := kernel[ky][kx]) < 0 else f"{c}")
                            for ky in range(KSIZE) for kx in range(KSIZE))
         calcs.append(f'<p style="animation:cva-c{i} {total}s step-end {start} infinite">'
                      f"out[{y}][{x}] = {terms}<br>= <b>{out[y][x]}</b></p>")
         # Output pixel i: appears in its slot and stays until the loop restarts.
+        # Shaded like the photo's output: dark = strong edge.
         css.append(f"@keyframes cva-o{i}{{0%{{opacity:1}}{100 * (n - i) / n:.4f}%{{opacity:0}}}}")
-        outs.append(f'<div><span style="opacity:0;animation:cva-o{i} {total}s step-end '
-                    f'{start} infinite">{out[y][x]}</span></div>')
+        shade = 255 - min(255, abs(out[y][x]) * 255 // top)
+        outs.append(f'<div><div style="{gray(shade)};border:0;height:100%;opacity:0;'
+                    f'animation:cva-o{i} {total}s step-end {start} infinite">{out[y][x]}</div></div>')
 
     def grid(cols, cells, extra=""):
-        return (f'<div class="cva-grid" style="--c:{cols}">' + "".join(cells) + extra + "</div>")
+        return f'<div class="cva-grid" style="--c:{cols}">' + "".join(cells) + extra + "</div>"
 
     box = f'<div class="cva-box" style="width:{3 * cell}px;height:{3 * cell}px"></div>'
     display(HTML(
         "<style>" + "".join(css) + "</style><div class='cva'>"
         "<div style='display:flex;flex-wrap:wrap;align-items:flex-start'>"
-        "<div><b>Input image</b> (6 × 8)" + grid(8, [f"<div>{v}</div>" for r in img for v in r], box)
-        + "</div><div><b>Kernel</b>" + grid(3, [f"<div>{v}</div>" for r in k for v in r])
-        + "</div><div><b>Output image</b> (4 × 6)" + grid(ow, outs, '<div class="cva-out"></div>')
+        f"<div><b>Input image</b> ({h} × {w})"
+        + grid(w, [f'<div style="{gray(v)}">{v}</div>' for r in image for v in r], box)
+        + "</div><div><b>Kernel</b>"
+        + grid(KSIZE, [f'<div class="cva-k">{v}</div>' for r in kernel for v in r])
+        + f"</div><div><b>Output image</b> ({oh} × {ow}, dark = strong edge)"
+        + grid(ow, outs, '<div class="cva-out"></div>')
         + "</div></div><div class='cva-calc'>" + "".join(calcs) + "</div>"
         f"<small>One output pixel every {step_seconds:g} s, then it starts again. "
         "Put the mouse on the animation to pause it.</small></div>"))
