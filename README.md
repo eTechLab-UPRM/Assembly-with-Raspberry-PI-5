@@ -38,8 +38,7 @@ type them.
 The first time a new Raspberry Pi starts, it asks you to create a user. Use
 these values:
 
-- **Username:** `raspberry-` followed by the ID your instructor assigned to
-  you, for example `raspberry-73`.
+- **Username:** `raspberry-` followed by the Board ID in the CanaKit box, for example `raspberry-73`.
 - **Password:** `123456`.
 
 ### Step 1. Connect the camera, with the Pi off
