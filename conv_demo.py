@@ -692,7 +692,9 @@ def notebook_animation(art=MARIO, colors=MARIO_COLORS, kernel=EDGE_KERNEL, scale
     kernel draws Mario's outline, one output pixel every `step` seconds.
     Pure HTML and CSS (no JavaScript), so it also moves in the exported HTML.
     It plays once and stays on the finished output, so the browser is idle
-    while the later cells measure.
+    while the later cells measure. The layout is in inline styles and the
+    finished output is the resting state; only the animation is in the
+    <style> block, so a viewer that drops it still shows the finished output.
     """
     from IPython.display import HTML, display
 
@@ -721,23 +723,14 @@ def notebook_animation(art=MARIO, colors=MARIO_COLORS, kernel=EDGE_KERNEL, scale
         y, x = divmod(min(i, n - 1), ow)
         return y, x
 
-    css = [".cva{font-family:monospace;color:#000;background:#fff;padding:12px;"
-           "display:inline-block;line-height:normal}"
-           ".cva:hover *{animation-play-state:paused}"
-           ".cva-row{display:flex;flex-wrap:wrap;align-items:flex-start;gap:24px}"
-           f".cva-grid{{position:relative;display:grid;grid-template-columns:repeat(var(--c),{cell}px);"
-           f"grid-auto-rows:{cell}px;margin-top:4px}}"
-           f".cva-anim{{position:absolute;box-sizing:border-box;animation:var(--a) {total:.2f}s "
-           f"step-end 1 forwards}}"
-           ".cva-zoom{position:relative;width:300px;height:60px;margin-top:4px}"
-           ".cva-zoom>div{position:absolute;opacity:0}"
-           ".cva table{border-collapse:collapse;display:inline-table;vertical-align:middle}"
-           ".cva td{width:30px;height:30px;text-align:center;border:1px solid #999;padding:0}"
-           ".cva .op{font-size:22px;padding:0 6px;vertical-align:middle}",
+    # Animations override inline styles while they run, and `forwards` keeps
+    # their last keyframe, which matches the inline (resting) style.
+    run = f"{total:.2f}s step-end 1 forwards"
+    css = [".cva:hover *{animation-play-state:paused}",
            # The yellow window over the input.
            keyframes("cva-win", lambda i: f"left:{pos(i)[1] * cell}px;top:{pos(i)[0] * cell}px"),
            # The output pixel being computed.
-           keyframes("cva-cur", lambda i: (f"left:{pos(i)[1] * cell}px;top:{pos(i)[0] * cell}px"
+           keyframes("cva-cur", lambda i: (f"left:{pos(i)[1] * cell}px;top:{pos(i)[0] * cell}px;opacity:1"
                                            if i < n else "left:0;top:0;opacity:0")),
            # Two covers hide what is not computed yet: the rest of the
            # current row, and the rows below it.
@@ -752,41 +745,55 @@ def notebook_animation(art=MARIO, colors=MARIO_COLORS, kernel=EDGE_KERNEL, scale
         """Visible from slot a to slot b, or from slot a to the end."""
         hide = f"{pct[b]}{{opacity:0}}" if b is not None else ""
         css.append(f"@keyframes {name}{{0%{{opacity:0}}{pct[a]}{{opacity:1}}{hide}}}")
-        return f'style="animation:{name} {total:.2f}s step-end 1 forwards"'
+        return f"animation:{name} {run}"
 
-    zooms = [f"<div {show('cva-run', 0, n)}>Each output pixel: the 9 pixels under the yellow "
-             "window, each times the kernel number on top of it, added together.</div>",
-             f"<div {show('cva-done', n)}><b>Done:</b> {n:,} output pixels, "
-             f"{n * KSIZE * KSIZE:,} multiply-adds.</div>"]
+    # At rest the running text is hidden and the "Done" text shown.
+    zooms = [f'<div style="position:absolute;opacity:0;{show("cva-run", 0, n)}">Each output '
+             "pixel: the 9 pixels under the yellow window, each times the kernel number on top "
+             "of it, added together.</div>",
+             f'<div style="position:absolute;{show("cva-done", n)}"><b>Done:</b> {n:,} output '
+             f"pixels, {n * KSIZE * KSIZE:,} multiply-adds.</div>"]
 
     def edge(v):
         g = 255 - min(255, abs(v) * 255 // top)          # dark = strong edge
         return f"rgb({g},{g},{g})"
 
     def grid(cols, cells, extra=""):
-        return f'<div class="cva-grid" style="--c:{cols}">' + "".join(cells) + extra + "</div>"
+        return (f'<div style="position:relative;display:grid;grid-template-columns:repeat({cols},'
+                f'{cell}px);grid-auto-rows:{cell}px;margin-top:4px">' + "".join(cells) + extra
+                + "</div>")
 
-    def anim(name, style=""):
-        return f'<div class="cva-anim" style="--a:{name};{style}"></div>'
+    def anim(name, style):
+        """An animated box; `style` is its resting (finished) state."""
+        return (f'<div style="position:absolute;box-sizing:border-box;{style};'
+                f'animation:{name} {run}"></div>')
 
-    ktable = "".join("<tr>" + "".join(f'<td style="text-align:center;background:#fff">{v}</td>' for v in row) + "</tr>" for row in kernel)
+    end_y, end_x = pos(n)
+    td = "width:30px;height:30px;text-align:center;border:1px solid #999;padding:0;background:#fff"
+    ktable = "".join("<tr>" + "".join(f'<td style="{td}">{v}</td>' for v in row) + "</tr>"
+                     for row in kernel)
     legend = " ".join(
         f'<span style="display:inline-block;width:12px;height:12px;background:{color};'
         f'border:1px solid #999"></span> {name} = {gray}'
         for name, color, gray in colors.values())
     display(HTML(
-        "<style>" + "".join(css) + "</style><div class='cva'><div class='cva-row'>"
+        "<style>" + "".join(css) + "</style><div class='cva' style='font-family:monospace;"
+        "color:#000;background:#fff;padding:12px;display:inline-block;line-height:normal'>"
+        "<div style='display:flex;flex-wrap:wrap;align-items:flex-start;gap:24px'>"
         f"<div><b>Input image</b> ({h} × {w})"
         + grid(w, [f'<div style="background:{colors[c][1]}"></div>' for row in big for c in row],
-               anim("cva-win", f"width:{3 * cell}px;height:{3 * cell}px;"
-                    "border:2px solid #ffeb3b;outline:1px solid #000"))
-        + "</div><div><b>Kernel</b> (edge detection)<br><table style='margin:4px 0 16px'>"
-        + ktable + "</table><div class='cva-zoom'>"
+               anim("cva-win", f"left:{end_x * cell}px;top:{end_y * cell}px;width:{3 * cell}px;"
+                    f"height:{3 * cell}px;border:2px solid #ffeb3b;outline:1px solid #000"))
+        + "</div><div><b>Kernel</b> (edge detection)<br><table style='border-collapse:collapse;"
+        "display:inline-table;vertical-align:middle;margin:4px 0 16px'>"
+        + ktable + "</table><div style='position:relative;width:300px;height:60px;margin-top:4px'>"
         + "".join(zooms) + "</div></div>"
         f"<div><b>Output image</b> ({oh} × {ow}, dark = strong edge)"
         + grid(ow, [f'<div style="background:{edge(v)}"></div>' for row in out for v in row],
-               anim("cva-row", "background:#e8eef8") + anim("cva-below", "background:#e8eef8")
-               + anim("cva-cur", f"width:{cell}px;height:{cell}px;border:2px solid #f57f17"))
+               anim("cva-row", "left:0;top:0;width:0;height:0;background:#e8eef8")
+               + anim("cva-below", "left:0;top:0;width:0;height:0;background:#e8eef8")
+               + anim("cva-cur", f"left:0;top:0;opacity:0;width:{cell}px;height:{cell}px;"
+                      "border:2px solid #f57f17"))
         + f"</div></div><p style='margin:8px 0 0'>The convolution only sees numbers: each "
         f"colour is one gray number. {legend}</p>"
         f"<small>One output pixel every {step:g} s, {total:.0f} s in all; it plays once. "
