@@ -32,6 +32,13 @@ type them.
 
 ## Part A. Prepare the Raspberry Pi
 
+The first time a new Raspberry Pi starts, it asks you to create a user. Use
+these values:
+
+- **Username:** `raspberry-` followed by the ID your instructor assigned to
+  you, for example `raspberry-73`.
+- **Password:** `123456`.
+
 ### Step 1. Connect the camera, with the Pi off
 
 The Pi only detects the camera when it starts, so connect it **before**
@@ -46,10 +53,10 @@ powering the Pi on.
 4. Do the same at the camera end, with the wide end of the cable.
 5. Connect the screen, keyboard and mouse, and power the Pi on.
 6. If the Pi shows the **Welcome to Raspberry Pi** wizard, follow it: choose
-   your country and language, create **your user and password** (remember
-   them: `sudo` asks for this password), and connect to the Wi-Fi. If it
-   offers to update the software, you can skip it. When the wizard
-   finishes, the Pi restarts with your user.
+   your country and language, create the **user and password** given at the
+   start of Part A (`sudo` asks for this password), and connect to the
+   Wi-Fi. If it offers to update the software, you can skip it. When the
+   wizard finishes, the Pi restarts with your user.
 
 ### Step 2. Check the system and the camera
 
