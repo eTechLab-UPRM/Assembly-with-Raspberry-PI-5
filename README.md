@@ -9,10 +9,11 @@ step by step, from a new Raspberry Pi to the notebook, and then to handing in
 your work.
 
 - [What you need](#what-you-need)
-- [Part A. Prepare the Raspberry Pi (only once)](#part-a-prepare-the-raspberry-pi-only-once)
+- [Part A. Prepare the Raspberry Pi](#part-a-prepare-the-raspberry-pi)
 - [Part B. Every time you work on the project](#part-b-every-time-you-work-on-the-project)
 - [Part C. Work through the notebook](#part-c-work-through-the-notebook)
 - [Part D. Hand in](#part-d-hand-in)
+- [Part E. Return the Raspberry Pi](#part-e-return-the-raspberry-pi)
 - [Troubleshooting](#troubleshooting)
 
 Type every command in a **terminal** on the Raspberry Pi (menu → Accessories
@@ -44,6 +45,11 @@ powering the Pi on.
    press the latch down.
 4. Do the same at the camera end, with the wide end of the cable.
 5. Connect the screen, keyboard and mouse, and power the Pi on.
+6. If the Pi shows the **Welcome to Raspberry Pi** wizard, follow it: choose
+   your country and language, create **your user and password** (remember
+   them: `sudo` asks for this password), and connect to the Wi-Fi. If it
+   offers to update the software, you can skip it. When the wizard
+   finishes, the Pi restarts with your user.
 
 ### Step 2. Check the system and the camera
 
@@ -167,6 +173,29 @@ The notebook has these parts:
 4. Open the HTML file to check that your answers, your photo and the outputs
    are there.
 5. Upload the HTML file to Moodle.
+
+## Part E. Return the Raspberry Pi
+
+When your work is in Moodle, return the Raspberry Pi as you received it: the
+next student must not find your files, your photo or your accounts. This
+step **erases everything** on the Pi and cannot be undone, so do it only
+after Part D.
+
+1. Close Jupyter (Part B, point 4) and the browser.
+2. In a terminal, run:
+
+   ```sh
+   sudo ~/Assembly-with-Raspberry-PI-5/factory_reset.sh
+   ```
+
+3. It lists what it will erase. Type `ERASE` and press **Enter**.
+4. The Pi restarts, erases everything (it can take a few minutes) and
+   **powers off by itself**. Do not unplug it before the screen goes dark
+   and the green light stops blinking.
+5. Unplug it and return it with the camera, the cable and the SD card.
+
+The next time the Pi starts, it shows the welcome wizard, as a new Raspberry
+Pi.
 
 ## Troubleshooting
 
