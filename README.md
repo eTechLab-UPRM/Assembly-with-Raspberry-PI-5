@@ -21,6 +21,9 @@ Type every command in a **terminal** on the Raspberry Pi (menu → Accessories
 finishes before the next one. Lines that start with `#` are comments: do not
 type them.
 
+> **To paste in the terminal, press Ctrl + Shift + V.** Ctrl + V does not
+> paste there.
+
 ## What you need
 
 - A Raspberry Pi 5, its power supply, and a heatsink or fan.
