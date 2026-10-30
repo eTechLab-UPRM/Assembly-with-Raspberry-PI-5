@@ -29,7 +29,7 @@ type them.
 - A screen, keyboard and mouse for the Pi.
 - An internet connection (Wi-Fi or cable).
 
-## Part A. Prepare the Raspberry Pi (only once)
+## Part A. Prepare the Raspberry Pi
 
 ### Step 1. Connect the camera, with the Pi off
 
