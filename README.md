@@ -13,7 +13,6 @@ your work.
 - [Part B. Every time you work on the project](#part-b-every-time-you-work-on-the-project)
 - [Part C. Work through the notebook](#part-c-work-through-the-notebook)
 - [Part D. Hand in](#part-d-hand-in)
-- [Get the latest version of the project](#get-the-latest-version-of-the-project)
 - [Troubleshooting](#troubleshooting)
 
 Type every command in a **terminal** on the Raspberry Pi (menu → Accessories
@@ -24,13 +23,11 @@ type them.
 ## What you need
 
 - A Raspberry Pi 5, its power supply, and a heatsink or fan.
-- A microSD card of 16 GB or more.
+- A microSD card with Raspberry Pi OS (64-bit).
 - A Raspberry Pi camera and a **Pi 5 camera cable** (one end narrower than the
   other).
 - A screen, keyboard and mouse for the Pi.
 - An internet connection (Wi-Fi or cable).
-- If the SD card has no system yet: a computer with
-  [Raspberry Pi Imager](https://www.raspberrypi.com/software/).
 
 ## Part A. Prepare the Raspberry Pi (only once)
 
@@ -46,30 +43,17 @@ powering the Pi on.
    with its metal contacts facing the metal contacts of the connector, and
    press the latch down.
 4. Do the same at the camera end, with the wide end of the cable.
+5. Connect the screen, keyboard and mouse, and power the Pi on.
 
-### Step 2. Install Raspberry Pi OS (64-bit)
-
-Skip this step if the SD card already starts into Raspberry Pi OS 64-bit (you
-check it in Step 3).
-
-1. On your computer, open Raspberry Pi Imager and insert the microSD card.
-2. **Device:** Raspberry Pi 5.
-3. **Operating system:** *Raspberry Pi OS (64-bit)*. Not the 32-bit version:
-   the assembly code of the project is for 64-bit ARM.
-4. **Storage:** the microSD card.
-5. When Imager offers to customize the settings, set a username and password
-   and your Wi-Fi network.
-6. Write the card, put it in the Pi, connect the screen, keyboard and mouse,
-   and power the Pi on. The first start takes a few minutes.
-
-### Step 3. Check the system and the camera
+### Step 2. Check the system and the camera
 
 ```sh
 uname -m
 ```
 
 It must print **`aarch64`**. If it prints `armv7l` or `armv6l`, the system is
-32-bit: go back to Step 2.
+32-bit and the project cannot run on it: ask your instructor for a
+microSD card with Raspberry Pi OS (64-bit).
 
 ```sh
 rpicam-hello --list-cameras
@@ -79,21 +63,21 @@ It must list a camera, for example `0 : ov5647 [2592x1944 ...]`. If it says
 `No cameras available!`, shut the Pi down, unplug it, check the cable at both
 ends (Step 1), and power it on again.
 
-### Step 4. Install the tools
+### Step 3. Install the tools
 
 ```sh
 sudo apt update
 sudo apt install -y git build-essential python3-venv
 ```
 
-It asks for your password (the one you set in Imager). Nothing appears while
+It asks for your password. Nothing appears while
 you type it: that is normal.
 
-### Step 5. Download the project
+### Step 4. Download the project
 
 ```sh
 cd ~
-git clone https://github.com/kevinnt16/Assembly-with-Raspberry-PI-5.git
+git clone https://github.com/eTechLab-UPRM/Assembly-with-Raspberry-PI-5.git
 cd Assembly-with-Raspberry-PI-5
 ```
 
@@ -107,7 +91,7 @@ python3 conv_bench.py --test
 The last line must end in **`all OK`**. Two lines say `MISMATCH`: that is
 expected, they are the versions you write later in the notebook.
 
-### Step 6. Install Jupyter
+### Step 5. Install Jupyter
 
 ```sh
 python3 -m venv ~/jupyter-env
@@ -184,23 +168,6 @@ The notebook has these parts:
    are there.
 5. Upload the HTML file to Moodle.
 
-## Get the latest version of the project
-
-If your instructor announces changes to the project, update it **before**
-starting to work, so you do not lose your answers:
-
-```sh
-cd ~/Assembly-with-Raspberry-PI-5
-cp project.ipynb ~/project_backup.ipynb   # a copy of your notebook, just in case
-git checkout -- project.ipynb src/conv_student_c.c src/conv_student_v1.S src/conv_student.S
-git pull
-make
-```
-
-`git checkout` discards your changes to the notebook and the exercise files,
-so the update does not conflict with them; your previous notebook stays in
-`~/project_backup.ipynb`. Your photo (`photo.pgm`) is kept.
-
 ## Troubleshooting
 
 | Problem | What to do |
@@ -209,14 +176,13 @@ so the update does not conflict with them; your previous notebook stays in
 | The notebook says `No camera detected` | Same as above, then run the photo cell of Part 1 again. |
 | The notebook says the camera did not take the photo | Close any other program using the camera, run `rpicam-hello --list-cameras` in a terminal, and run the photo cell again. |
 | `photo.pgm not found` | Take the photo first: run the photo cell in Part 1. |
-| `uname -m` prints `armv7l` or `armv6l` | The system is 32-bit. Install Raspberry Pi OS (64-bit), Step 2. |
+| `uname -m` prints `armv7l` or `armv6l` | The system is 32-bit. Ask your instructor for a microSD card with Raspberry Pi OS (64-bit). |
 | `git clone` asks for a username and password | The repository address is wrong or private. Check the address with your instructor. |
-| `pip install` fails with `incomplete-download` | Slow connection. Run the Step 6 command again; it continues where it stopped. |
-| `pip` says `no such option: --resume-retries` | Old `pip`. Run `~/jupyter-env/bin/pip install --upgrade pip` and repeat Step 6. |
-| `jupyter: No such file or directory` | Use the full path `~/jupyter-env/bin/jupyter` (Part B), or install Jupyter (Step 6). |
+| `pip install` fails with `incomplete-download` | Slow connection. Run the Step 5 command again; it continues where it stopped. |
+| `pip` says `no such option: --resume-retries` | Old `pip`. Run `~/jupyter-env/bin/pip install --upgrade pip` and repeat Step 5. |
+| `jupyter: No such file or directory` | Use the full path `~/jupyter-env/bin/jupyter` (Part B), or install Jupyter (Step 5). |
 | An exercise cell says `NOT BUILT` | A mistake in your code. The message shows the line and what is wrong: fix it in the cell and run the cell again. |
 | An exercise cell says `MISMATCH` | Your code builds but computes a wrong result. In Parts 3 and 5, check the loop limits and the indexes; in Part 7, check the order of the `madd` operands. |
 | An exercise cell says your code *never ends* or *crashed the program* | A loop never reaches its limit (a counter not increased, or a jump to the wrong label), or an index goes outside the image. Fix the code and run the cell again. |
 | A row of the table in Part 9 says `NOT BUILT` | Run `make` in a terminal and read its error. |
-| `git pull` says your local changes would be overwritten | Follow [Get the latest version of the project](#get-the-latest-version-of-the-project). |
 | Times look much slower than expected | Close other programs, check the heatsink or fan, and run `vcgencmd get_throttled`: `throttled=0x0` means the CPU is not being slowed down by heat or power. |
