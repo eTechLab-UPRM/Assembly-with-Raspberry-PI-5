@@ -691,6 +691,8 @@ def notebook_animation(art=MARIO, colors=MARIO_COLORS, kernel=EDGE_KERNEL, scale
     x `scale` image pixels, so flat areas give 0 and the edge-detection
     kernel draws Mario's outline, one output pixel every `step` seconds.
     Pure HTML and CSS (no JavaScript), so it also moves in the exported HTML.
+    It plays once and stays on the finished output, so the browser is idle
+    while the later cells measure.
     """
     from IPython.display import HTML, display
 
@@ -704,14 +706,14 @@ def notebook_animation(art=MARIO, colors=MARIO_COLORS, kernel=EDGE_KERNEL, scale
     top = max(abs(v) for row in out for v in row) or 1
     n = oh * ow
 
-    # Slot i starts at t[i], then a pause on the finished output before it
-    # starts again.
+    # Slot i starts at t[i]; slot n, the finished output, is the last keyframe
+    # (100%), and `forwards` keeps it on screen when the animation ends.
     t = [i * step for i in range(n + 1)]
-    total = t[n] + 3
-    pct = [f"{100 * v / total:.3f}%" for v in t] + ["100%"]
+    total = t[n]
+    pct = [f"{100 * v / total:.3f}%" for v in t]
 
     def keyframes(name, style):
-        """One keyframe per slot (style(i) for slot i), then style(n) at the end."""
+        """One keyframe per slot: style(i) for slot i, style(n) when finished."""
         return (f"@keyframes {name}{{" + "".join(f"{pct[i]}{{{style(i)}}}" for i in range(n + 1))
                 + "}")
 
@@ -726,7 +728,7 @@ def notebook_animation(art=MARIO, colors=MARIO_COLORS, kernel=EDGE_KERNEL, scale
            f".cva-grid{{position:relative;display:grid;grid-template-columns:repeat(var(--c),{cell}px);"
            f"grid-auto-rows:{cell}px;margin-top:4px}}"
            f".cva-anim{{position:absolute;box-sizing:border-box;animation:var(--a) {total:.2f}s "
-           f"step-end infinite}}"
+           f"step-end 1 forwards}}"
            ".cva-zoom{position:relative;width:300px;height:60px;margin-top:4px}"
            ".cva-zoom>div{position:absolute;opacity:0}"
            ".cva table{border-collapse:collapse;display:inline-table;vertical-align:middle}"
@@ -746,14 +748,15 @@ def notebook_animation(art=MARIO, colors=MARIO_COLORS, kernel=EDGE_KERNEL, scale
                                              f"width:{ow * cell}px;height:{(oh - pos(i)[0] - 1) * cell}px"
                                              if i < n else "width:0;height:0"))]
 
-    def show(name, a, b):
-        """Visible from slot a to slot b only."""
-        css.append(f"@keyframes {name}{{0%{{opacity:0}}{pct[a]}{{opacity:1}}{pct[b]}{{opacity:0}}}}")
-        return f'style="animation:{name} {total:.2f}s step-end infinite"'
+    def show(name, a, b=None):
+        """Visible from slot a to slot b, or from slot a to the end."""
+        hide = f"{pct[b]}{{opacity:0}}" if b is not None else ""
+        css.append(f"@keyframes {name}{{0%{{opacity:0}}{pct[a]}{{opacity:1}}{hide}}}")
+        return f'style="animation:{name} {total:.2f}s step-end 1 forwards"'
 
     zooms = [f"<div {show('cva-run', 0, n)}>Each output pixel: the 9 pixels under the yellow "
              "window, each times the kernel number on top of it, added together.</div>",
-             f"<div {show('cva-done', n, n + 1)}><b>Done:</b> {n:,} output pixels, "
+             f"<div {show('cva-done', n)}><b>Done:</b> {n:,} output pixels, "
              f"{n * KSIZE * KSIZE:,} multiply-adds.</div>"]
 
     def edge(v):
@@ -786,8 +789,9 @@ def notebook_animation(art=MARIO, colors=MARIO_COLORS, kernel=EDGE_KERNEL, scale
                + anim("cva-cur", f"width:{cell}px;height:{cell}px;border:2px solid #f57f17"))
         + f"</div></div><p style='margin:8px 0 0'>The convolution only sees numbers: each "
         f"colour is one gray number. {legend}</p>"
-        f"<small>One output pixel every {step:g} s, {total:.0f} s in all, then it starts "
-        "again. Put the mouse on the animation to pause it.</small></div>"))
+        f"<small>One output pixel every {step:g} s, {total:.0f} s in all; it plays once. "
+        "Put the mouse on the animation to pause it, and run the cell again to watch it "
+        "again.</small></div>"))
 
 
 def step_example(seed):
