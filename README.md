@@ -1,150 +1,222 @@
 # 2D Convolution on the Raspberry Pi: Python → C → Assembly
 
-The same 2D convolution written in Python, in C and in ARM64 assembly, and
-timed on a photo taken with the Raspberry Pi camera. The goal is to see how much speed
-each step down in language depth buys, and how the way assembly is written
-changes its speed.
+Mini project: you run the same operation, a 2D convolution, in Python, in C and
+in ARM64 assembly on a Raspberry Pi 5, write three of the versions yourself,
+and measure how fast each one is.
 
-It is a mini project for students, built around the
-Jupyter notebook **`project.ipynb`**: it reads like a short book chapter, runs the
-code in its cells, has students write three of the versions, and has the
-questions they answer.
+Everything happens in the notebook **`project.ipynb`**. This guide takes you,
+step by step, from a new Raspberry Pi to the notebook, and then to handing in
+your work.
 
-## The operation
+- [What you need](#what-you-need)
+- [Part A. Prepare the Raspberry Pi (only once)](#part-a-prepare-the-raspberry-pi-only-once)
+- [Part B. Every time you work on the project](#part-b-every-time-you-work-on-the-project)
+- [Part C. Work through the notebook](#part-c-work-through-the-notebook)
+- [Part D. Hand in](#part-d-hand-in)
+- [Get the latest version of the project](#get-the-latest-version-of-the-project)
+- [Troubleshooting](#troubleshooting)
 
-A 3 × 3 kernel slides over an `H × W` image of 32-bit integers. Each output
-pixel is the sum of the 9 pixels under the kernel, each multiplied by its
-coefficient:
+Type every command in a **terminal** on the Raspberry Pi (menu → Accessories
+→ Terminal). Copy one line at a time, press **Enter**, and wait until it
+finishes before the next one. Lines that start with `#` are comments: do not
+type them.
 
-```
-out[y][x] = Σ (ky = 0..2) Σ (kx = 0..2)  in[y + ky][x + kx] · k[ky][kx]
-```
+## What you need
 
-The output is `(H − 2) × (W − 2)` (no padding). As in deep-learning
-libraries, the kernel is not flipped.
+- A Raspberry Pi 5, its power supply, and a heatsink or fan.
+- A microSD card of 16 GB or more.
+- A Raspberry Pi camera and a **Pi 5 camera cable** (one end narrower than the
+  other).
+- A screen, keyboard and mouse for the Pi.
+- An internet connection (Wi-Fi or cable).
+- If the SD card has no system yet: a computer with
+  [Raspberry Pi Imager](https://www.raspberrypi.com/software/).
 
-Every part of the project processes a **2592 × 1944 grayscale photo** taken with
-the Raspberry Pi camera (`photo.pgm`), with an **edge-detection kernel**:
+## Part A. Prepare the Raspberry Pi (only once)
 
-```
--1 -1 -1
--1  8 -1
--1 -1 -1
-```
+### Step 1. Connect the camera, with the Pi off
 
-Flat areas give 0 and edges give large values, so the output shows the
-outlines of the photo. Python takes about 9 seconds on a Raspberry Pi 5. What
-the photo shows does not change the amount of work, so all students' times
-are comparable.
+The Pi only detects the camera when it starts, so connect it **before**
+powering the Pi on.
 
-## The versions
+1. If the Pi is on, shut it down (`sudo shutdown now`) and **unplug it**.
+2. Find one of the two small connectors marked **CAM/DISP 0** or
+   **CAM/DISP 1** on the Pi.
+3. Lift the connector's latch, push the narrow end of the cable in all the way
+   with its metal contacts facing the metal contacts of the connector, and
+   press the latch down.
+4. Do the same at the camera end, with the wide end of the cable.
 
-| Version | File | What changes |
-| --- | --- | --- |
-| Python | `conv_bench.py` | Four nested loops. Every `+` and `*` is interpreted while the program runs. |
-| C v1 column order | `src/conv.c` | The same four loops, compiled to machine code by `gcc -O2`, with the outer loop over columns: every step jumps a whole row in memory. Its loops and operations are commented with their RISC-V (Ripes) translation. |
-| C v2 row order | `src/conv_student_c.c` | The same convolution walking the image row by row, the order it is stored in memory. **Written by the students.** |
-| ASM v1 brute force | `src/conv_student_v1.S` | A direct translation of C v2: every index is recomputed with `MUL`. **Students write its core.** |
-| ASM v2 pointers | `src/conv_asm.S` | No index arithmetic in the loop: pointers walk the image, the kernel stays in registers. |
-| ASM v3 MAC | `src/conv_student.S` | v2 with each `MUL` + `ADD` pair fused into one `MADD`. **Written by the students.** |
-| ASM v4 NEON | `src/conv_asm.S` | Vector instructions compute 4 output pixels at once. |
+### Step 2. Install Raspberry Pi OS (64-bit)
 
-Students write three versions in notebook cells, never editing the files by
-hand:
+Skip this step if the SD card already starts into Raspberry Pi OS 64-bit (you
+check it in Step 3).
 
-- **C v2** (Part 3): they get the function's signature and write the four
-  loops, with hints. `build_c_v2()` puts it into `src/conv_student_c.c`.
-- **ASM v1** (Part 5): the function is given (size check, `oh`/`ow`, the
-  four loops with named labels as in Ripes, the pixel load); they write its
-  core: the coefficient load, the multiply-add and the store of the output
-  pixel, about 9 instructions. `build_v1()` puts it into
-  `src/conv_student_v1.S`.
-- **ASM v3** (Part 7): `src/conv_student.S` starts as v2 with its first `MUL` +
-  `ADD` pair already fused into `MADD`, as a worked example, and 7 pairs
-  marked `TODO`; they edit the code of one output pixel. `build_v3()` puts
-  it into the file.
+1. On your computer, open Raspberry Pi Imager and insert the microSD card.
+2. **Device:** Raspberry Pi 5.
+3. **Operating system:** *Raspberry Pi OS (64-bit)*. Not the 32-bit version:
+   the assembly code of the project is for 64-bit ARM.
+4. **Storage:** the microSD card.
+5. When Imager offers to customize the settings, set a username and password
+   and your Wi-Fi network.
+6. Write the card, put it in the Pi, connect the screen, keyboard and mouse,
+   and power the Pi on. The first start takes a few minutes.
 
-Both functions (in `conv_demo.py`) write the code between the file's
-`YOUR CODE` markers, build it, point any compiler error to the line of the
-cell, and run the benchmark in a separate process, so code that crashes or
-never ends is reported instead of stopping the notebook. Until a student's
-version is correct, the race leaves it out.
-
-## Setup and running the project
-
-A Raspberry Pi camera is required. It must be connected **before** the Pi is
-powered on.
-
-**[docs/SETUP.md](docs/SETUP.md)** takes a student from a new Raspberry Pi
-to the open notebook, step by step, with troubleshooting. In short:
+### Step 3. Check the system and the camera
 
 ```sh
-uname -m                                         # must print aarch64
-rpicam-hello --list-cameras                      # must list the camera
+uname -m
+```
+
+It must print **`aarch64`**. If it prints `armv7l` or `armv6l`, the system is
+32-bit: go back to Step 2.
+
+```sh
+rpicam-hello --list-cameras
+```
+
+It must list a camera, for example `0 : ov5647 [2592x1944 ...]`. If it says
+`No cameras available!`, shut the Pi down, unplug it, check the cable at both
+ends (Step 1), and power it on again.
+
+### Step 4. Install the tools
+
+```sh
 sudo apt update
 sudo apt install -y git build-essential python3-venv
-git clone https://github.com/kevinnt16/Assembly-with-Raspberry-PI-5.git
-cd Assembly-with-Raspberry-PI-5
-make && python3 conv_bench.py --test             # must end in "all OK"
-python3 -m venv ~/jupyter-env
-~/jupyter-env/bin/pip install --index-url https://pypi.org/simple --resume-retries 5 --timeout 60 notebook
-~/jupyter-env/bin/jupyter notebook project.ipynb
 ```
 
-## Without Jupyter
+It asks for your password (the one you set in Imager). Nothing appears while
+you type it: that is normal.
 
-Everything also runs from the terminal, with the Python standard library only:
+### Step 5. Download the project
 
 ```sh
-make                                  # build the C and assembly libraries
-python3 conv_bench.py --test          # correctness check, must end with "all OK"
-python3 conv_demo.py photo            # take the photo: photo.pgm
-python3 conv_bench.py                 # all versions on the photo
-python3 conv_bench.py --skip-python   # quick: compare against C v1 instead
-python3 conv_bench.py --only "C v1"   # one version only (Python, C v1, ... ASM v4)
-python3 conv_demo.py                  # interactive console demo
+cd ~
+git clone https://github.com/kevinnt16/Assembly-with-Raspberry-PI-5.git
+cd Assembly-with-Raspberry-PI-5
 ```
 
-`conv_bench.py` prints one row per version: the median time of 5 runs (Python
-runs once), how many times faster it is than Python, and `OK` if its output
-equals the Python output. A `MISMATCH` row does not count, however fast it
-is. `NOT BUILT` means the library is missing or did not assemble: run `make`
-and read its error.
+Build the code and test it:
 
-If the camera is not detected, `take_photo()` / `conv_demo.py photo` stops
-with the steps to check the connection. Without `photo.pgm`, the benchmark
-and the race ask for the photo first.
+```sh
+make
+python3 conv_bench.py --test
+```
 
-`conv_demo.py` has three modes:
+The last line must end in **`all OK`**. Two lines say `MISMATCH`: that is
+expected, they are the versions you write later in the notebook.
 
-| Mode | What students see |
+### Step 6. Install Jupyter
+
+```sh
+python3 -m venv ~/jupyter-env
+~/jupyter-env/bin/pip install --index-url https://pypi.org/simple --resume-retries 5 --timeout 60 notebook
+```
+
+It downloads about 100 packages and can take several minutes. It must end with
+a line that starts with `Successfully installed` and includes `notebook`. If
+the download stops with an error, run the same command again: it continues
+where it stopped.
+
+The Raspberry Pi is ready. Go on to Part B.
+
+## Part B. Every time you work on the project
+
+1. Power the Pi on (with the camera already connected) and open a terminal.
+2. Open the notebook:
+
+   ```sh
+   cd ~/Assembly-with-Raspberry-PI-5
+   ~/jupyter-env/bin/jupyter notebook project.ipynb
+   ```
+
+   The notebook opens in the browser. **Leave the terminal open** while you
+   work: it is running Jupyter.
+3. Work in the notebook (Part C). Save often with **Ctrl + S**.
+4. When you finish for the day: save the notebook, go back to the terminal,
+   press **Ctrl + C**, then `y` and **Enter**.
+
+Your work is kept in the notebook file: next time, repeat these steps and
+continue where you left off.
+
+## Part C. Work through the notebook
+
+- Run the cells **in order, from top to bottom**: click a cell and press
+  **Shift + Enter**.
+- Read every text cell: it explains what the next code cell does and what to
+  look at in its output.
+- A cell marked **✏️** is a question: double-click it, write your answer
+  below **Your answer:**, then press Shift + Enter.
+- In **Parts 3, 5 and 7** you write code inside a cell (one C function and two
+  pieces of assembly). Write it in the cell and run the cell: it builds and
+  checks your code. It is correct when the cell says **`check: OK`** and the
+  *extra check* below it is OK too. If it says `NOT BUILT`, the message shows
+  the line of your code with the error.
+- Made a mess in an exercise cell? **Ctrl + Z** in the cell undoes your edits.
+- Measure with other programs closed: times change if the Pi is busy.
+
+The notebook has these parts:
+
+| Part | What you do |
 | --- | --- |
-| 1. Step by step | A small grid of numbers with the 3 × 3 kernel highlighted as it slides. Each output pixel shows its 9 multiplications, and the output fills in. `Enter` advances one pixel, `a` runs on its own. |
-| 2. Photo | Takes the photo with the camera (`rpicam-still`, 3 seconds of preview) and saves it as `photo.pgm`: the brightness plane of a YUV420 capture, which is the grayscale image. |
-| 3. Race | Python processes the photo on a CPU core of its own while, on another core, the six C and assembly versions process it one after another, so no version slows another one down. Panel 1 shows each version's progress and time; panel 2 shows how many photos each C and assembly version could process in the time Python has used so far (Python's time ÷ that version's time). |
+| 0 | Check the setup |
+| 1 | See a convolution, compute one pixel by hand, take your photo |
+| 2 | Measure Python and C v1 |
+| 3 | **Write C v2** and see why the loop order matters |
+| 4 | Read the RISC-V (Ripes) → ARM64 translation tables |
+| 5 | **Write the core of assembly v1** |
+| 6 | Measure assembly v2 (pointers) |
+| 7 | **Write assembly v3** with the MAC instruction `madd` |
+| 8 | Measure assembly v4 (NEON) |
+| 9 | Measure all the versions together |
+| 10 | Watch the race |
+| 11 | Write your conclusions |
 
-In the notebook, `notebook_image()` shows the photo next to its edges,
-computed with C on the whole photo, plus a zoom on the pixel values and the
-kernel. Photos are not committed (`.gitignore`).
+## Part D. Hand in
 
-## Fair timings
+1. Check that every code cell has its output and every ✏️ question has your
+   answer.
+2. Save the notebook (**Ctrl + S**).
+3. Export it: **File → Save and Export Notebook As… → HTML**. The browser saves
+   an `.html` file in `~/Downloads`.
+4. Open the HTML file to check that your answers, your photo and the outputs
+   are there.
+5. Upload the HTML file to Moodle.
 
-- Close other programs and let the board cool between runs.
-- Use a heatsink or fan, and check for throttling after a run with
-  `vcgencmd get_throttled` (`0x0` means no throttling).
-- Report the board model with the results: times differ between models.
+## Get the latest version of the project
 
-## Files
+If your instructor announces changes to the project, update it **before**
+starting to work, so you do not lose your answers:
 
+```sh
+cd ~/Assembly-with-Raspberry-PI-5
+cp project.ipynb ~/project_backup.ipynb   # a copy of your notebook, just in case
+git checkout -- project.ipynb src/conv_student_c.c src/conv_student_v1.S src/conv_student.S
+git pull
+make
 ```
-project.ipynb       the project: explanations, code cells and questions
-docs/SETUP.md       setup guide for students, from a new Raspberry Pi and its camera
-conv_bench.py       Python version, runner and timing table
-conv_demo.py        camera, console demo, and the notebook's step-by-step, image and race
-src/conv.c          C v1 (column order), with RISC-V comments
-src/conv_student_c.c  C v2 (row order), the students' C exercise
-src/conv_asm.S      ARM64 assembly v2 and v4, commented line by line
-src/conv_student_v1.S  ARM64 assembly v1, the students' first assembly exercise
-src/conv_student.S  ARM64 assembly v3, the students' second assembly exercise
-Makefile            builds the five libraries in build/
-```
+
+`git checkout` discards your changes to the notebook and the exercise files,
+so the update does not conflict with them; your previous notebook stays in
+`~/project_backup.ipynb`. Your photo (`photo.pgm`) is kept.
+
+## Troubleshooting
+
+| Problem | What to do |
+| --- | --- |
+| `rpicam-hello --list-cameras` says `No cameras available!` | Shut the Pi down, unplug it, check that the cable is the Pi 5 type and fully inserted at both ends with the latches closed, and power it on again (Step 1). |
+| The notebook says `No camera detected` | Same as above, then run the photo cell of Part 1 again. |
+| The notebook says the camera did not take the photo | Close any other program using the camera, run `rpicam-hello --list-cameras` in a terminal, and run the photo cell again. |
+| `photo.pgm not found` | Take the photo first: run the photo cell in Part 1. |
+| `uname -m` prints `armv7l` or `armv6l` | The system is 32-bit. Install Raspberry Pi OS (64-bit), Step 2. |
+| `git clone` asks for a username and password | The repository address is wrong or private. Check the address with your instructor. |
+| `pip install` fails with `incomplete-download` | Slow connection. Run the Step 6 command again; it continues where it stopped. |
+| `pip` says `no such option: --resume-retries` | Old `pip`. Run `~/jupyter-env/bin/pip install --upgrade pip` and repeat Step 6. |
+| `jupyter: No such file or directory` | Use the full path `~/jupyter-env/bin/jupyter` (Part B), or install Jupyter (Step 6). |
+| An exercise cell says `NOT BUILT` | A mistake in your code. The message shows the line and what is wrong: fix it in the cell and run the cell again. |
+| An exercise cell says `MISMATCH` | Your code builds but computes a wrong result. In Parts 3 and 5, check the loop limits and the indexes; in Part 7, check the order of the `madd` operands. |
+| An exercise cell says your code *never ends* or *crashed the program* | A loop never reaches its limit (a counter not increased, or a jump to the wrong label), or an index goes outside the image. Fix the code and run the cell again. |
+| A row of the table in Part 9 says `NOT BUILT` | Run `make` in a terminal and read its error. |
+| `git pull` says your local changes would be overwritten | Follow [Get the latest version of the project](#get-the-latest-version-of-the-project). |
+| Times look much slower than expected | Close other programs, check the heatsink or fan, and run `vcgencmd get_throttled`: `throttled=0x0` means the CPU is not being slowed down by heat or power. |
