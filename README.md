@@ -176,8 +176,7 @@ The notebook has these parts:
 
 ## Part E. Return the Raspberry Pi
 
-When your work is in Moodle, return the Raspberry Pi as you received it: the
-next student must not find your files, your photo or your accounts. This
+When your work is in Moodle, return the Raspberry Pi as you received it. This
 step **erases everything** on the Pi and cannot be undone, so do it only
 after Part D.
 
