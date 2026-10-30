@@ -684,14 +684,13 @@ MARIO_COLORS = {".": ("sky", "#5c94fc", 200), "R": ("red", "#d82800", 90),
 
 
 def notebook_animation(art=MARIO, colors=MARIO_COLORS, kernel=EDGE_KERNEL, scale=2,
-                       slow=0.5, fast=0.03, cell=10):
+                       step=0.03, cell=10):
     """Animate the kernel sliding over a pixel-art Mario.
 
     Each colour is one gray number and every pixel of the drawing is `scale`
     x `scale` image pixels, so flat areas give 0 and the edge-detection
-    kernel draws Mario's outline. The first output row goes slowly (`slow`
-    seconds per pixel, with a zoom on the 9 numbers), the rest fast. Pure
-    HTML and CSS (no JavaScript), so it also moves in the exported HTML.
+    kernel draws Mario's outline, one output pixel every `step` seconds.
+    Pure HTML and CSS (no JavaScript), so it also moves in the exported HTML.
     """
     from IPython.display import HTML, display
 
@@ -705,11 +704,9 @@ def notebook_animation(art=MARIO, colors=MARIO_COLORS, kernel=EDGE_KERNEL, scale
     top = max(abs(v) for row in out for v in row) or 1
     n = oh * ow
 
-    # Slot i starts at t[i]; the first row is slow, the rest fast, then a
-    # pause on the finished output before it starts again.
-    t = [0.0]
-    for i in range(n):
-        t.append(t[-1] + (slow if i < ow else fast))
+    # Slot i starts at t[i], then a pause on the finished output before it
+    # starts again.
+    t = [i * step for i in range(n + 1)]
     total = t[n] + 3
     pct = [f"{100 * v / total:.3f}%" for v in t] + ["100%"]
 
@@ -730,7 +727,7 @@ def notebook_animation(art=MARIO, colors=MARIO_COLORS, kernel=EDGE_KERNEL, scale
            f"grid-auto-rows:{cell}px;margin-top:4px}}"
            f".cva-anim{{position:absolute;box-sizing:border-box;animation:var(--a) {total:.2f}s "
            f"step-end infinite}}"
-           ".cva-zoom{position:relative;width:300px;height:110px;margin-top:4px}"
+           ".cva-zoom{position:relative;width:300px;height:60px;margin-top:4px}"
            ".cva-zoom>div{position:absolute;opacity:0}"
            ".cva table{border-collapse:collapse;display:inline-table;vertical-align:middle}"
            ".cva td{width:30px;height:30px;text-align:center;border:1px solid #999;padding:0}"
@@ -754,23 +751,10 @@ def notebook_animation(art=MARIO, colors=MARIO_COLORS, kernel=EDGE_KERNEL, scale
         css.append(f"@keyframes {name}{{0%{{opacity:0}}{pct[a]}{{opacity:1}}{pct[b]}{{opacity:0}}}}")
         return f'style="animation:{name} {total:.2f}s step-end infinite"'
 
-    zooms = []
-    for x in range(ow):                                   # the slow first row
-        tds = "".join(
-            "<tr>" + "".join(
-                f'<td style="text-align:center;background:{colors[c][1]};'
-                f'color:{"#000" if colors[c][2] > 120 else "#fff"}">'
-                f"{colors[c][2]}</td>" for c in big[ky][x:x + KSIZE]) + "</tr>"
-            for ky in range(KSIZE))
-        zooms.append(f"<div {show(f'cva-z{x}', x, x + 1)}><table>{tds}</table>"
-                     f'<span class="op">×</span>kernel<span class="op">=</span>'
-                     f'<b style="font-size:20px">{out[0][x]}</b><br>'
-                     f"<small>out[0][{x}]: each pixel times the kernel number on top of it, "
-                     f"then add the 9</small></div>")
-    zooms.append(f"<div {show('cva-ff', ow, n)}><b>⏩ Fast forward:</b> the same 9 multiply-adds "
-                 f"for each of the other {n - ow:,} output pixels.</div>")
-    zooms.append(f"<div {show('cva-done', n, n + 1)}><b>Done:</b> {n:,} output pixels, "
-                 f"{n * KSIZE * KSIZE:,} multiply-adds.</div>")
+    zooms = [f"<div {show('cva-run', 0, n)}>Each output pixel: the 9 pixels under the yellow "
+             "window, each times the kernel number on top of it, added together.</div>",
+             f"<div {show('cva-done', n, n + 1)}><b>Done:</b> {n:,} output pixels, "
+             f"{n * KSIZE * KSIZE:,} multiply-adds.</div>"]
 
     def edge(v):
         g = 255 - min(255, abs(v) * 255 // top)          # dark = strong edge
@@ -794,7 +778,7 @@ def notebook_animation(art=MARIO, colors=MARIO_COLORS, kernel=EDGE_KERNEL, scale
                anim("cva-win", f"width:{3 * cell}px;height:{3 * cell}px;"
                     "border:2px solid #ffeb3b;outline:1px solid #000"))
         + "</div><div><b>Kernel</b> (edge detection)<br><table style='margin:4px 0 16px'>"
-        + ktable + "</table><br><b>Zoom on the yellow window</b><div class='cva-zoom'>"
+        + ktable + "</table><div class='cva-zoom'>"
         + "".join(zooms) + "</div></div>"
         f"<div><b>Output image</b> ({oh} × {ow}, dark = strong edge)"
         + grid(ow, [f'<div style="background:{edge(v)}"></div>' for row in out for v in row],
@@ -802,9 +786,8 @@ def notebook_animation(art=MARIO, colors=MARIO_COLORS, kernel=EDGE_KERNEL, scale
                + anim("cva-cur", f"width:{cell}px;height:{cell}px;border:2px solid #f57f17"))
         + f"</div></div><p style='margin:8px 0 0'>The convolution only sees numbers: each "
         f"colour is one gray number. {legend}</p>"
-        f"<small>The first row goes slowly ({slow:g} s per output pixel), then it speeds up; "
-        f"{total:.0f} s in all, then it starts again. Put the mouse on the animation to "
-        "pause it.</small></div>"))
+        f"<small>One output pixel every {step:g} s, {total:.0f} s in all, then it starts "
+        "again. Put the mouse on the animation to pause it.</small></div>"))
 
 
 def step_example(seed):
