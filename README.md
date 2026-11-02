@@ -130,8 +130,16 @@ The Raspberry Pi is ready. Go on to Part B.
    ~/jupyter-env/bin/jupyter notebook project.ipynb
    ```
 
-   The notebook opens in the browser. **Leave the terminal open** while you
-   work: it is running Jupyter.
+   The notebook opens in the browser.
+
+> [!CAUTION]
+> **Always open the notebook from the terminal, with the two commands above.**
+> Do not open `project.ipynb` by double-clicking it.
+>
+> **Do not close that terminal while you work.** It is running Jupyter: if you
+> close it, the notebook stops working and you can lose what you have not
+> saved. Close it only at the end (point 4).
+
 3. Work in the notebook (Part C). Save often with **Ctrl + S**.
 4. When you finish for the day: save the notebook, go back to the terminal,
    press **Ctrl + C**, then `y` and **Enter**.
@@ -145,8 +153,10 @@ continue where you left off.
   **Shift + Enter**.
 - Read every text cell: it explains what the next code cell does and what to
   look at in its output.
-- A cell marked **✏️** is a question: double-click it, write your answer
-  below **Your answer:**, then press Shift + Enter.
+- The questions are the cells marked **✏️ Q#** (Q for *question*: ✏️ **Q1**
+  to ✏️ **Q11**). **Your answer goes in the cell immediately below the
+  question**, marked **ANSWER Q# HERE**: double-click it, write your answer,
+  then press Shift + Enter. Do not write in the question cell.
 - In **Parts 3, 5 and 7** you write code inside a cell (one C function and two
   pieces of assembly). Write it in the cell and run the cell: it builds and
   checks your code. It is correct when the cell says **`check: OK`** and the
@@ -174,8 +184,8 @@ The notebook has these parts:
 
 ## Part D. Hand in
 
-1. Check that every code cell has its output and every ✏️ question has your
-   answer.
+1. Check that every code cell has its output and every **ANSWER Q# HERE**
+   cell has your answer.
 2. Save the notebook (**Ctrl + S**).
 3. Export it: **File → Save and Export Notebook As… → HTML**. The browser saves
    an `.html` file in `~/Downloads`.
