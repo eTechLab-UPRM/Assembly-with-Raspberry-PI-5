@@ -1,5 +1,5 @@
 /*
- * conv_student.S - YOUR assembly version: conv_asm_v3 (MAC).
+ * conv_student_v3.S - YOUR assembly version: conv_asm_v3 (MAC).
  *
  * You do not need to edit this file by hand: Part 7 of project.ipynb has the
  * code for one output pixel in a notebook cell, and build_v3() writes it
@@ -29,7 +29,7 @@
  *
  * Hints: acc lives in w19 and the pixel in w20. Keep the first
  * "mul w19, w20, w9" as it is: it starts the sum (acc = pixel * k[0]).
- * If something goes wrong, "git checkout src/conv_student.S" restores
+ * If something goes wrong, "git checkout src/conv_student_v3.S" restores
  * the original file.
  *
  * Same prototype and registers as conv_asm_v2 (see src/conv_asm.S):

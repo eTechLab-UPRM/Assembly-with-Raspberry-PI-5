@@ -10,7 +10,7 @@
  *   conv_asm_v2  Pointers      No index arithmetic inside the loop: pointers
  *                              walk the image, the kernel stays in registers.
  *   conv_asm_v3  MAC           v2 with each MUL + ADD pair fused into one
- *                              MADD. YOU write this one: src/conv_student.S
+ *                              MADD. YOU write this one: src/conv_student_v3.S
  *   conv_asm_v4  NEON SIMD     4 output pixels per iteration with 128-bit
  *                              vector registers.
  *
@@ -119,7 +119,7 @@ conv_asm_v2:
         .size   conv_asm_v2, .-conv_asm_v2
 
 /* ------------------------------------------------------------------------
- * conv_asm_v3 lives in src/conv_student.S: it is the hands-on exercise.
+ * conv_asm_v3 lives in src/conv_student_v3.S: it is the hands-on exercise.
  * ------------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------------

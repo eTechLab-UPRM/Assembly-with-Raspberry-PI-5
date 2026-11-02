@@ -61,7 +61,7 @@ VERSIONS = [
     ("C v2 rows (yours)",   "libconv_student_c.so", "conv_c_rows"),
     ("ASM v1 brute (yours)", "libconv_student_v1.so", "conv_asm_v1"),
     ("ASM v2 pointers",     "libconv_asm.so",     "conv_asm_v2"),
-    ("ASM v3 MAC (yours)",  "libconv_student.so", "conv_asm_v3"),
+    ("ASM v3 MAC (yours)",  "libconv_student_v3.so", "conv_asm_v3"),
     ("ASM v4 NEON",         "libconv_asm.so",     "conv_asm_v4"),
 ]
 

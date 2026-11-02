@@ -491,7 +491,7 @@ def build_v3(code):
     """Part 7: build the student's assembly v3 (one output pixel) and measure it."""
     import re
 
-    lines = build_yours(code, "conv_student.S", indent="        ")
+    lines = build_yours(code, "conv_student_v3.S", indent="        ")
     count = sum(1 for line in lines if re.match(r"\s*madd\b", line))
     print(f"Your code has {count} madd instructions (8 when you are done).\n", flush=True)
     run_yours_benchmark("ASM v3 MAC (yours)")
