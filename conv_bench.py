@@ -20,8 +20,10 @@ import ctypes
 import os
 import platform
 import random
+import shutil
 import statistics
 import sys
+import tempfile
 import time
 from array import array
 
@@ -69,6 +71,7 @@ VERSIONS = [
 YOURS = {"C v2 rows (yours)", "ASM v1 brute (yours)", "ASM v3 MAC (yours)"}
 
 INT32_PTR = ctypes.POINTER(ctypes.c_int32)
+LOADED = {}                   # (path, time of the last build) -> loaded library
 
 
 def load(libname, symbol):
@@ -76,8 +79,20 @@ def load(libname, symbol):
     path = os.path.join(BUILD, libname)
     if not os.path.exists(path):
         raise RuntimeError(f"{path} not found. Run 'make' and fix any error it shows.")
+    key = (path, os.stat(path).st_mtime_ns)
+    if key not in LOADED:
+        # Loading the same path again gives back the library already loaded,
+        # even after make rebuilt it: the notebook would keep running the old
+        # code. A copy under a new name is always loaded from the new file.
+        fd, copy = tempfile.mkstemp(suffix=".so", dir=BUILD)
+        os.close(fd)
+        try:
+            shutil.copyfile(path, copy)
+            LOADED[key] = ctypes.CDLL(copy)
+        finally:
+            os.remove(copy)   # Linux keeps the loaded copy until the program ends
     try:
-        func = getattr(ctypes.CDLL(path), symbol)
+        func = getattr(LOADED[key], symbol)
     except AttributeError:
         raise RuntimeError(f"function {symbol} not found in {path}.") from None
     func.argtypes = [INT32_PTR, INT32_PTR, INT32_PTR, ctypes.c_long, ctypes.c_long]
