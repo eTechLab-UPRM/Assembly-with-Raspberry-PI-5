@@ -448,8 +448,9 @@ def build_yours(code, filename, indent=""):
 def run_yours_benchmark(name):
     """Time only version `name`, in its own process: if the student's
     code crashes or never ends, the notebook survives and says why. Then a
-    check of version `name` with random images and kernels: the edge kernel
-    of the photo is symmetric, so it cannot catch a transposed kernel."""
+    silent check of version `name` with random images and kernels: the edge
+    kernel of the photo is symmetric, so it cannot catch a transposed kernel.
+    It prints something only when it fails."""
     import subprocess
 
     try:
@@ -464,13 +465,11 @@ def run_yours_benchmark(name):
     if bench.returncode < 0:
         raise LabError("Your code crashed the program (it read or wrote outside the "
                        "image).\nCheck the loop limits and the indexes.")
-    if f"OK {name}" in check_yours_output():
-        print(f"Extra check with random images and kernels: {name} is OK.")
-    else:
-        raise LabError(f"Extra check with random images and kernels: {name} gives a "
-                       "WRONG result.\nThe photo's edge kernel is symmetric, so some "
-                       "mistakes only show up with other kernels:\ncheck the kernel "
-                       "index k[ky * 3 + kx] (ky and kx not swapped) and the loop limits.")
+    if f"OK {name}" not in check_yours_output():
+        raise LabError(f"{name} gives a WRONG result with other images and kernels.\n"
+                       "The photo's edge kernel is symmetric, so some mistakes only show "
+                       "up with other kernels:\ncheck the kernel index k[ky * 3 + kx] "
+                       "(ky and kx not swapped) and the loop limits.")
 
 
 def build_c_v2(code):

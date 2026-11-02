@@ -154,14 +154,13 @@ continue where you left off.
 - Read every text cell: it explains what the next code cell does and what to
   look at in its output.
 - The questions are the cells marked **✏️ Q#** (Q for *question*: ✏️ **Q1**
-  to ✏️ **Q11**). **Your answer goes in the cell immediately below the
+  to ✏️ **Q9**). **Your answer goes in the cell immediately below the
   question**, marked **ANSWER Q# HERE**: double-click it, write your answer,
   then press Shift + Enter. Do not write in the question cell.
 - In **Parts 3, 5 and 7** you write code inside a cell (one C function and two
   pieces of assembly). Write it in the cell and run the cell: it builds and
-  checks your code. It is correct when the cell says **`check: OK`** and the
-  *extra check* below it is OK too. If it says `NOT BUILT`, the message shows
-  the line of your code with the error.
+  checks your code. It is correct when the cell says **`check: OK`**. If it
+  says `NOT BUILT`, the message shows the line of your code with the error.
 - Made a mess in an exercise cell? **Ctrl + Z** in the cell undoes your edits.
 - Measure with other programs closed: times change if the Pi is busy.
 

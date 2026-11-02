@@ -226,8 +226,7 @@ def measure_one(img, k, description, reps, which):
         times.append(t)
     status = "OK" if out == ref else "MISMATCH"
     check = "" if name == VERSIONS[0][0] else f"   check: {status}"
-    print(f"\n{name}: {statistics.median(times) * 1e3:.2f} ms "
-          f"(median of {reps} runs){check}")
+    print(f"\n{name}: {statistics.median(times) * 1e3:.2f} ms{check}")
     return status == "OK"
 
 
@@ -273,8 +272,7 @@ def benchmark(img, k, description, reps, skip_python):
         else:
             print(f"{name:<20} {t * 1e3:>11.2f} {base_t / t:>10.1f}x  {status}")
     print()
-    print(f"C and assembly: median of {reps} runs. "
-          f"'OK' means the output equals the {base_name} output.")
+    print(f"'OK' means the output equals the {base_name} output.")
     return all(status == "OK" for *_, status in rows)
 
 
