@@ -7,6 +7,12 @@ frame goes through the version you choose (Python, C or assembly) at full
 size, and a page shows the camera and the edges side by side, with the time
 each version needs per frame. Only the fast versions keep up with the camera.
 
+At this size the camera gives at most 15 frames per second, so every version
+faster than that looks the same. The "work per frame" slider of the page
+convolves each frame N times: every frame rate is divided by N, like a slow
+motion replay, and the differences between the fast versions show up in the
+video too.
+
     stream = notebook_stream()     # in project.ipynb
     stream.stop()                  # stops the video and frees the camera
 
@@ -42,6 +48,7 @@ I32_PTR = ctypes.POINTER(ctypes.c_int32)
 LONG = ctypes.c_long
 PYTHON = "Python"
 DEFAULT_VERSION = "ASM v4 NEON"
+MAX_WORK = 10                 # largest "work per frame" of the page's slider
 
 
 def load_helpers():
@@ -131,13 +138,16 @@ class Stream:
       - reader: reads the camera frames from rpicam-vid and shrinks each one
         for the screen, so the camera image stays live whatever the version;
       - worker: on a CPU core of its own, takes the newest frame, runs the
-        chosen version on it at full size and times only that call;
+        chosen version on it at full size `work` times in a row and times
+        only those calls;
       - server: the page and the frames, on http://127.0.0.1:<port>/.
     """
 
     def __init__(self, width=PHOTO_SIZE[0], height=PHOTO_SIZE[1], framerate=15, shrink=3,
-                 stride=None, port=0, versions=None, helpers=None, command=None):
+                 stride=None, port=0, work=1, versions=None, helpers=None, command=None):
         self.w, self.h, self.framerate, self.f = width, height, framerate, shrink
+        self.work = min(max(int(work), 1), MAX_WORK)   # convolutions per frame (not Python)
+        self.shown_work = None                 # work of the edges on the page
         self.oh, self.ow = height - (KSIZE - 1), width - (KSIZE - 1)
         self.stride = stride
         self.port = port
@@ -291,6 +301,7 @@ class Stream:
                 last = self.cam_id
                 self.lib.y_to_i32(self.frame.c, self.stride, h, w, c_img)
                 name = self.busy = self.selected
+                work = 1 if name == PYTHON else self.work
             if name == PYTHON:
                 rows = [img[r * w:(r + 1) * w].tolist() for r in range(h)]
                 t0 = time.perf_counter()
@@ -299,17 +310,22 @@ class Stream:
                 for r, row in enumerate(result):
                     out[r * ow:(r + 1) * ow] = array("i", row)
             else:
+                # The same frame `work` times: only the convolution is repeated,
+                # the conversions before and after it run once per frame.
+                done = 0
                 t0 = time.perf_counter()
-                self.funcs[name](c_img, c_out, c_k, h, w)
-                seconds = time.perf_counter() - t0
+                while done < work and not self.stopping.is_set():
+                    self.funcs[name](c_img, c_out, c_k, h, w)
+                    done += 1
+                seconds = (time.perf_counter() - t0) / max(done, 1)
             p = self.lib.edges_small(c_out, oh, ow, f, int(self.top), c_tmp, small.c)
             self.top = p if self.top == 0 else 0.8 * self.top + 0.2 * p
             with self.cond:
                 small, self.res_small = self.res_small, small
-                self.ms[name] = seconds * 1e3
-                if name != self.shown:         # frames/s of this version only
-                    self.res_rate.reset()
-                self.shown = name
+                self.ms[name] = seconds * 1e3  # time of ONE convolution
+                if name != self.shown or work != self.shown_work:
+                    self.res_rate.reset()      # frames/s of this version and work only
+                self.shown, self.shown_work = name, work
                 self.busy = None
                 self.res_id += 1
                 self.res_rate.tick()
@@ -324,6 +340,7 @@ class Stream:
             "width": self.w, "height": self.h, "stride": self.stride,
             "macs": self.oh * self.ow * KSIZE * KSIZE,
             "selected": self.selected, "busy": self.busy, "shown": self.shown,
+            "work": self.work, "shown_work": self.shown_work, "max_work": MAX_WORK,
             "camera_fps": cam_fps, "result_fps": self.res_rate.fps(),
             "versions": [{"name": n, "ms": self.ms.get(n)} for n, _ in self.versions],
         }
@@ -349,6 +366,15 @@ class Stream:
         if name in self.funcs:
             with self.cond:
                 self.selected = name
+
+    def set_work(self, n):
+        """Convolutions per camera frame, from 1 (real time) to MAX_WORK."""
+        try:
+            n = min(max(int(n), 1), MAX_WORK)
+        except ValueError:
+            return
+        with self.cond:
+            self.work = n
 
     def _start_server(self):
         stream = self
@@ -381,6 +407,8 @@ class Stream:
                 query = parse_qs(url.query)
                 if url.path == "/select":
                     stream.select(query.get("v", [""])[0])
+                elif url.path == "/work":
+                    stream.set_work(query.get("n", [""])[0])
                 elif url.path == "/stop":
                     threading.Thread(target=stream.stop, daemon=True).start()
                 self.reply(b"ok", "text/plain")
@@ -405,6 +433,8 @@ PAGE = """<!doctype html>
            background: #f4f4f4; cursor: pointer; }
   button.on { background: #1a7f37; color: #fff; border-color: #1a7f37; }
   #stop { margin-left: auto; background: #b42318; color: #fff; border-color: #b42318; }
+  #work { width: 220px; }
+  #workhelp { color: #444; }
   table { border-collapse: collapse; margin-top: 6px; }
   td, th { padding: 2px 10px; text-align: right; border-bottom: 1px solid #ddd; }
   td:first-child, th:first-child { text-align: left; }
@@ -417,8 +447,13 @@ PAGE = """<!doctype html>
   <div class="view"><b id="restitle">Edges</b><canvas id="res"></canvas></div>
 </div>
 <div class="bar" id="buttons"></div>
-<table><thead><tr><th>Version</th><th>Time per frame</th><th>Max. frames/s</th>
-  <th>Keeps up with the camera?</th></tr></thead><tbody id="rows"></tbody></table>
+<div class="bar">
+  <label for="work">Work per frame:</label>
+  <input type="range" id="work" min="1" max="10" value="1">
+  <b id="worklabel">1×</b>
+  <span id="workhelp"></span>
+</div>
+<table><thead id="head"></thead><tbody id="rows"></tbody></table>
 <div id="status">Starting...</div>
 <script>
 const $ = id => document.getElementById(id);
@@ -449,23 +484,46 @@ function build(s) {
   stop.id = "stop"; stop.textContent = "Stop video";
   stop.onclick = () => fetch("stop", {method: "POST"});
   $("buttons").appendChild(stop);
+  const slider = $("work");
+  slider.max = s.max_work; slider.value = s.work;
+  showWork(s.work);
+  slider.oninput = () => showWork(+slider.value);
+  slider.onchange = () => fetch("work?n=" + slider.value, {method: "POST"});
   built = true;
 }
+
+function showWork(n) {
+  $("worklabel").textContent = n + "×";
+  $("workhelp").textContent = n === 1
+    ? "real time: every camera frame is convolved once."
+    : `slow motion: every camera frame is convolved ${n} times (Python: once), ` +
+      `so every frame rate is divided by ${n}.`;
+}
+
+function fps(v, digits) { return fmt(v, v != null && v < 1 ? 2 : digits); }
 
 function update(s) {
   if (!built) build(s);
   for (const b of $("buttons").children)
     if (b.dataset.name) b.classList.toggle("on", b.dataset.name === s.selected);
-  const camFps = s.camera_fps;
+  const camFps = s.camera_fps, slow = s.work > 1;
+  const shownWork = s.shown_work > 1 ? ` at ${s.shown_work}× work` : "";
   $("camtitle").textContent = `Camera: ${s.width} × ${s.height} pixels, ${fmt(camFps, 1)} frames/s`;
-  $("restitle").textContent = `Edges with ${s.shown || s.selected}: ${fmt(s.result_fps, 1)} frames/s`;
+  $("restitle").textContent = `Edges with ${s.shown || s.selected}${shownWork}: ` +
+                              `${fmt(s.result_fps, 1)} frames/s`;
+  $("head").innerHTML = "<tr><th>Version</th><th>Time per convolution</th>" +
+    "<th>Max. frames/s</th>" + (slow ? `<th>Max. frames/s at ${s.work}×</th>` : "") +
+    "<th>Keeps up with the camera?</th></tr>";
   $("rows").innerHTML = s.versions.map(v => {
     const max = v.ms ? 1000 / v.ms : null;
-    const keeps = max == null || camFps == null ? "-" : max >= camFps * 0.95
+    const work = v.name === "Python" ? 1 : s.work;
+    const now = max == null ? null : max / work;
+    const keeps = now == null || camFps == null ? "-" : now >= camFps * 0.95
       ? '<span class="ok">yes</span>' : '<span class="slow">no</span>';
     return `<tr class="${v.name === s.selected ? "on" : ""}"><td>${v.name}</td>` +
            `<td>${v.ms == null ? "-" : v.ms >= 1000 ? fmt(v.ms / 1000, 1) + " s" : fmt(v.ms, 1) + " ms"}</td>` +
-           `<td>${fmt(max, max != null && max < 1 ? 2 : 1)}</td><td>${keeps}</td></tr>`;
+           `<td>${fps(max, 1)}</td>` + (slow ? `<td>${fps(now, 1)}</td>` : "") +
+           `<td>${keeps}</td></tr>`;
   }).join("");
   let text = `Every frame: ${(s.width * s.height / 1e6).toFixed(1)} M pixels, ` +
              `${(s.macs / 1e6).toFixed(1)} M multiply-adds. Camera row: ${s.stride} bytes.`;
@@ -520,7 +578,7 @@ def notebook_stream(**options):
     display(HTML(f'<p>The video runs until you click <b>Stop video</b> or run '
                  f'<code>stream.stop()</code>. Also on its own tab: '
                  f'<a href="{_current.url}" target="_blank">{_current.url}</a></p>'))
-    display(IFrame(_current.url, width="100%", height=760))
+    display(IFrame(_current.url, width="100%", height=800))
     return _current
 
 
@@ -530,9 +588,12 @@ def main():
     p.add_argument("--port", type=int, default=8000, help="port of the page (default 8000)")
     p.add_argument("--framerate", type=int, default=15, help="camera frames per second")
     p.add_argument("--stride", type=int, help="camera row length in bytes (default: detected)")
+    p.add_argument("--work", type=int, default=1,
+                   help=f"convolutions per frame at the start, 1 to {MAX_WORK} (default 1)")
     args = p.parse_args()
     try:
-        stream = Stream(port=args.port, framerate=args.framerate, stride=args.stride).start()
+        stream = Stream(port=args.port, framerate=args.framerate, stride=args.stride,
+                        work=args.work).start()
     except RuntimeError as err:
         sys.exit(f"error: {err}")
     print(f"Open {stream.url} in the browser. Ctrl+C stops the video.")
