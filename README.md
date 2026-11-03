@@ -1,234 +1,295 @@
-# 2D Convolution on the Raspberry Pi: Python → C → Assembly
+# Live video test: the convolution on the camera, in real time
 
-Mini project: you run the same operation, a 2D convolution, in Python, in C and
-in ARM64 assembly on a Raspberry Pi 5, write three of the versions yourself,
-and measure how fast each one is.
+This branch (`streaming-test`) is an experiment. It adds a **live video** to the
+project: on the left, the Raspberry Pi camera; on the right, the edges computed
+from every frame by the version you choose (Python, C or assembly). The frames
+are the size of the project photo, **2592 × 1944 pixels**, so every frame is the
+same work as the photo: **45.3 million multiply-adds**.
 
-Everything happens in the notebook **`project.ipynb`**. This guide takes you,
-step by step, from a new Raspberry Pi to the notebook, and then to handing in
-your work.
+The course guide (preparing the Pi, the notebook, handing in) is the README of
+the [`main` branch](https://github.com/eTechLab-UPRM/Assembly-with-Raspberry-PI-5/blob/main/README.md).
+This one explains only the live video.
 
-- [What you need](#what-you-need)
-- [Part A. Prepare the Raspberry Pi](#part-a-prepare-the-raspberry-pi)
-- [Part B. Every time you work on the project](#part-b-every-time-you-work-on-the-project)
-- [Part C. Work through the notebook](#part-c-work-through-the-notebook)
-- [Part D. Hand in](#part-d-hand-in)
-- [Part E. Return the Raspberry Pi](#part-e-return-the-raspberry-pi)
+- [Run it](#run-it)
+- [What you see](#what-you-see)
+- [How it works](#how-it-works)
+- [Why the video stops at 15 frames per second](#why-the-video-stops-at-15-frames-per-second)
+- [Work per frame: the slow motion](#work-per-frame-the-slow-motion)
+- [Threads, cores and the GIL](#threads-cores-and-the-gil)
+- [Options](#options)
+- [Files of this branch](#files-of-this-branch)
 - [Troubleshooting](#troubleshooting)
 
-Type every command in a **terminal** on the Raspberry Pi (menu → Accessories
-→ Terminal). Copy one line at a time, press **Enter**, and wait until it
-finishes before the next one. Lines that start with `#` are comments: do not
-type them.
+## Run it
 
-> **To paste in the terminal, press Ctrl + Shift + V.** Ctrl + V does not
-> paste there.
+The Pi must be ready as in Part A of the main guide (camera, tools, project and
+Jupyter). Then, in a terminal:
 
-## What you need
-
-- A Raspberry Pi 5, its power supply, and a heatsink or fan.
-- A microSD card with Raspberry Pi OS (64-bit).
-- A Raspberry Pi camera and a **Pi 5 camera cable** (one end narrower than the
-  other).
-- A screen, keyboard and mouse for the Pi.
-- An internet connection (Wi-Fi or cable).
-
-## Part A. Prepare the Raspberry Pi
-
-The first time a new Raspberry Pi starts, it asks you to create a user. Use
-these values:
-
-- **Username:** `raspberry-` followed by the Board ID in the CanaKit box, for example `raspberry-73`.
-- **Password:** `123456`.
-
-### Step 1. Connect the camera, with the Pi off
-
-The Pi only detects the camera when it starts, so connect it **before**
-powering the Pi on.
-
-1. If the Pi is on, shut it down (`sudo shutdown now`) and **unplug it**.
-2. Find one of the two small connectors marked **CAM/DISP 0** or
-   **CAM/DISP 1** on the Pi.
-3. Lift the connector's latch, push the narrow end of the cable in all the way
-   with its metal contacts facing the metal contacts of the connector, and
-   press the latch down.
-4. Do the same at the camera end, with the wide end of the cable.
-5. Connect the screen, keyboard and mouse, and power the Pi on.
-6. If the Pi shows the **Welcome to Raspberry Pi** wizard, follow it: choose
-   your country and language, create the **user and password** given at the
-   start of Part A (`sudo` asks for this password), and connect to the
-   Wi-Fi. If it offers to update the software, you can skip it. When the
-   wizard finishes, the Pi restarts with your user.
-
-### Step 2. Check the system and the camera
-
-```sh
-uname -m
-```
-
-It must print **`aarch64`**. If it prints `armv7l` or `armv6l`, the system is
-32-bit and the project cannot run on it: ask your instructor for a
-microSD card with Raspberry Pi OS (64-bit).
-
-```sh
-rpicam-hello --list-cameras
-```
-
-It must list a camera, for example `0 : ov5647 [2592x1944 ...]`. If it says
-`No cameras available!`, shut the Pi down, unplug it, check the cable at both
-ends (Step 1), and power it on again.
-
-### Step 3. Install the tools
-
-```sh
-sudo apt update
-sudo apt install -y git build-essential python3-venv
-```
-
-It asks for your password. Nothing appears while
-you type it: that is normal.
-
-### Step 4. Download the project
-
-```sh
-cd ~
-git clone https://github.com/eTechLab-UPRM/Assembly-with-Raspberry-PI-5.git
-cd Assembly-with-Raspberry-PI-5
-```
-
-Build the code and test it:
-
-```sh
+```bash
+cd ~/Assembly-with-Raspberry-PI-5
+git fetch origin
+git checkout streaming-test
 make
-python3 conv_bench.py --test
+~/jupyter-env/bin/jupyter notebook project.ipynb
 ```
 
-The last line must end in **`all OK`**. Two lines say `MISMATCH`: that is
-expected, they are the versions you write later in the notebook.
+In the notebook, run the first cells, your cells of Parts 3, 5 and 7 (C v2,
+ASM v1 and ASM v3), and then **Part 10b. Live video (test)**. Click **Stop
+video**, or run `stream.stop()`, to free the camera.
 
-### Step 5. Install Jupyter
+Without the notebook, from a terminal:
 
-```sh
-python3 -m venv ~/jupyter-env
-~/jupyter-env/bin/pip install --index-url https://pypi.org/simple --resume-retries 5 --timeout 60 notebook
+```bash
+python3 conv_stream.py
 ```
 
-It downloads about 100 packages and can take several minutes. It must end with
-a line that starts with `Successfully installed` and includes `notebook`. If
-the download stops with an error, run the same command again: it continues
-where it stopped.
+and open the address it prints in the browser. **Ctrl + C** stops it.
 
-The Raspberry Pi is ready. Go on to Part B.
+To go back to the course version: `git checkout main`.
 
-## Part B. Every time you work on the project
+## What you see
 
-1. Power the Pi on (with the camera already connected) and open a terminal.
-2. Open the notebook:
+| Part of the page | What it shows |
+|---|---|
+| **Camera** (left) | The camera, live, with its frames per second |
+| **Edges** (right) | The output of the chosen version, with its frames per second |
+| **Version buttons** | The version that processes the frames; the change takes effect on the next frame |
+| **Work per frame** | 1× is real time; N× is slow motion (see below) |
+| **Table** | For every version you have tried: the time of one convolution, the frames per second it could process, and whether it keeps up with the camera |
+| **Stop video** | Stops the camera, the threads and the page |
 
-   ```sh
-   cd ~/Assembly-with-Raspberry-PI-5
-   ~/jupyter-env/bin/jupyter notebook project.ipynb
+The versions you write (C v2, ASM v1, ASM v3) appear only if they give the
+correct result. If one is missing, the cell prints, for example,
+`ASM v1 brute (yours) is not in the video: it is not correct yet.`
+
+## How it works
+
+```
+camera ──► reader ──► worker ──► web server ──► page in the notebook
+(rpicam-vid) (thread 1)  (thread 2:     (thread 3)     (two images + table)
+                          the convolution)
+```
+
+### 1. The camera: `rpicam-vid`
+
+The program starts the camera with:
+
+```
+rpicam-vid -t 0 -n --codec yuv420 --width 2592 --height 1944 --framerate 15 -o -
+```
+
+- `-t 0`: no time limit. `-n`: no preview window.
+- `--codec yuv420`: the frames are **not compressed**. Each one starts with the
+  brightness of every pixel (1 byte per pixel, the Y plane), followed by the
+  colour. Only the brightness is used: the convolution works in grayscale, as
+  with the photo.
+- `-o -`: the frames go to a pipe that Python reads, not to a file.
+
+The camera pads each row with extra bytes up to a "round" length, the
+**stride**. When the video starts, the program tries the possible lengths and
+keeps the one with which consecutive rows look most alike. With a wrong length
+the image comes out skewed or striped.
+
+### 2. Reader thread: receives every frame
+
+- Reads one full frame from the pipe.
+- Makes a **small copy for the screen**: the average of every 3 × 3 block,
+  864 × 648 pixels, which the browser draws easily.
+- Leaves the full frame in a "mailbox" and tells the worker there is a new one.
+
+It never waits for the convolution, so the camera image stays live even with
+Python, which needs about 9 seconds per frame.
+
+### 3. Worker thread: the convolution
+
+It runs on **the last core of the CPU**, so that the other threads do not move
+it from core to core. Again and again:
+
+1. Waits for a new frame and takes **the newest one**. Frames that arrive while
+   a slow version works are skipped, so the delay does not pile up.
+2. Converts the brightness bytes to the `int32` image that every version of the
+   project expects.
+3. Calls the chosen version **and times only that call**:
+   ```python
+   self.funcs[name](c_img, c_out, c_k, h, w)
    ```
+   It is the same function as in the benchmark (Part 9) and the race (Part 10),
+   on an image of the same size and with the same kernel.
+4. Shrinks the output for the screen, keeping the **strongest edge** of every
+   3 × 3 block so thin lines do not disappear, and maps it to black and white:
+   no edge is white, a strong edge is black.
+5. Leaves the image in another mailbox and starts again.
 
-   The notebook opens in the browser.
+### 4. The helpers in C: `src/stream.c`
 
-> [!CAUTION]
-> **Always open the notebook from the terminal, with the two commands above.**
-> Do not open `project.ipynb` by double-clicking it.
->
-> **Do not close that terminal while you work.** It is running Jupyter: if you
-> close it, the notebook stops working and you can lose what you have not
-> saved. Close it only at the end (point 4).
+Converting 5 million pixels with Python loops would take longer than the
+convolution itself. The three conversions are in C, so the times of the table
+are the times of the versions, not of the conversions:
 
-3. Work in the notebook (Part C). Save often with **Ctrl + S**.
-4. When you finish for the day: save the notebook, go back to the terminal,
-   press **Ctrl + C**, then `y` and **Enter**.
+| Function | What it does |
+|---|---|
+| `gray_small` | Camera frame → small image for the screen (average of each block) |
+| `y_to_i32` | Camera brightness (bytes) → `int32` image for the version |
+| `edges_small` | Output of the version → small black-and-white image (strongest edge of each block) |
 
-Your work is kept in the notebook file: next time, repeat these steps and
-continue where you left off.
+`make` builds them into `build/libconv_stream.so`.
 
-## Part C. Work through the notebook
+### 5. Web server and page
 
-- Run the cells **in order, from top to bottom**: click a cell and press
-  **Shift + Enter**.
-- Read every text cell: it explains what the next code cell does and what to
-  look at in its output.
-- The questions are the cells marked **✏️ Q#** (Q for *question*: ✏️ **Q1**
-  to ✏️ **Q9**). **Your answer goes in the cell immediately below the
-  question**, marked **ANSWER Q# HERE**: double-click it, write your answer,
-  then press Shift + Enter. Do not write in the question cell.
-- In **Parts 3, 5 and 7** you write code inside a cell (one C function and two
-  pieces of assembly). Write it in the cell and run the cell: it builds and
-  checks your code. It is correct when the cell says **`check: OK`**. If it
-  says `NOT BUILT`, the message shows the line of your code with the error.
-- Made a mess in an exercise cell? **Ctrl + Z** in the cell undoes your edits.
-- Measure with other programs closed: times change if the Pi is busy.
+A notebook cannot play video, but it can show a web page inside a cell:
 
-The notebook has these parts:
+- Python starts a small web server, **on this Pi only** (`127.0.0.1`): no other
+  computer can open it.
+- The cell shows the page in a frame (an *iframe*). The same address also works
+  in its own browser tab.
+- The page asks the server for images in a loop. The server **waits until it has
+  something new** and replies with the small images it has not sent yet and the
+  data of the table.
+- The page draws the images on two `<canvas>` and updates the table.
+- The buttons and the slider send the choice to the server, and the worker uses
+  it on the next frame.
 
-| Part | What you do |
-| --- | --- |
-| 0 | Check the setup |
-| 1 | See a convolution, compute one pixel by hand, take your photo |
-| 2 | Measure Python and C v1 |
-| 3 | **Write C v2** and see why the loop order matters |
-| 4 | Read the RISC-V (Ripes) → ARM64 translation tables |
-| 5 | **Write the core of assembly v1** |
-| 6 | Measure assembly v2 (pointers) |
-| 7 | **Write assembly v3** with the MAC instruction `madd` |
-| 8 | Measure assembly v4 (NEON) |
-| 9 | Measure all the versions together |
-| 10 | Watch the race |
-| 11 | Write your conclusions |
+### Total time of a frame
 
-## Part D. Hand in
+The table shows the time of the convolution only. The worker also does the two
+conversions of steps 2 and 4, a few milliseconds per frame. So:
 
-1. Check that every code cell has its output and every **ANSWER Q# HERE**
-   cell has your answer.
-2. Save the notebook (**Ctrl + S**).
-3. Export it: **File → Save and Export Notebook As… → HTML**. The browser saves
-   an `.html` file in `~/Downloads`.
-4. Open the HTML file to check that your answers, your photo and the outputs
-   are there.
-5. Upload the HTML file to Moodle.
+- **Max. frames/s** (1 ÷ the time of one convolution) is an upper limit.
+- The frames per second in the title of the edges are the real ones and include
+  the conversions, so they are a little lower.
 
-## Part E. Return the Raspberry Pi
+Between the moment the camera takes a frame and the moment you see it there
+are also the transfer through the pipe (7.5 MB per frame), the reply to the
+page and the drawing. They add some tens of milliseconds of **delay**, but not
+fewer frames per second: every step works at the same time as the others, like
+an assembly line.
 
-When your work is in Moodle, return the Raspberry Pi as you received it. This
-step **erases everything** on the Pi and cannot be undone, so do it only
-after Part D.
+## Why the video stops at 15 frames per second
 
-1. Close Jupyter (Part B, point 4) and the browser.
-2. In a terminal, run:
+At 2592 × 1944 the camera gives **at most about 15 frames per second**. It is a
+limit of the sensor at that size, not of the Pi or the code. A version that
+needs less than about 67 ms per frame finishes before the next frame arrives and
+waits for it, so every fast version shows 15 frames per second.
 
-   ```sh
-   sudo ~/Assembly-with-Raspberry-PI-5/factory_reset.sh
-   ```
+With the times of the benchmark (Part 9) on a Pi 5:
 
-3. It lists what it will erase. Type `ERASE` and press **Enter**.
-4. The Pi restarts, erases everything (it can take a few minutes) and
-   **powers off by itself**. Do not unplug it before the screen goes dark
-   and the green light stops blinking.
-5. Unplug it and return it with the camera, the cable and the SD card.
+| Version | One convolution | Could process | You see at 1× |
+|---|---|---|---|
+| Python | about 8.7 s | 0.1 frames/s | 0.1 frames/s |
+| ASM v1 | 141 ms | 7 frames/s | about 7 |
+| C v1 / C v2 | 63–69 ms | about 15 frames/s | 13 to 15 |
+| ASM v2 / ASM v3 | 19 ms | 52 frames/s | **15** (camera limit) |
+| ASM v4 NEON | 9.5 ms | 105 frames/s | **15** (camera limit) |
 
-The next time the Pi starts, it shows the welcome wizard, as a new Raspberry
-Pi.
+The table of the page shows all of them in **Max. frames/s**, but the video of
+ASM v2, v3 and v4 looks the same.
+
+A smaller size does not help: with 4 times fewer pixels the camera goes faster,
+but every version is also 4 times faster, and the differences hide again at the
+new limit. The screen is another limit: it draws at most 60 frames per second.
+
+## Work per frame: the slow motion
+
+The **Work per frame** slider (1× to 10×) makes the differences visible in the
+video:
+
+- At **N×**, every camera frame goes through the version **N times in a row**,
+  as if the image were N times larger. Python always runs once: N times would
+  take minutes.
+- Only the convolution is repeated: the conversions run once per frame, so the
+  difference comes only from the code of each version.
+- Every frame rate is divided by N, and the **proportions between the versions
+  stay the real ones**, like a slow-motion replay of a race.
+
+The frames per second are not set by the program: they are what each version
+actually reaches with that work. With the times of the table above, at **7×**:
+
+| Version | Work per frame | You see |
+|---|---|---|
+| ASM v4 NEON | about 67 ms | about 14 frames/s, smooth |
+| ASM v2 / ASM v3 | about 133 ms | about 7 frames/s, it jumps |
+| C v1 / C v2 | about 450 ms | about 2 frames/s, in steps |
+| ASM v1 | about 1 s | about 1 frame/s, almost photos |
+
+With N > 1 the table adds the column **Max. frames/s at N×**, and *Keeps up
+with the camera?* uses those frame rates. The **Time per convolution** is
+always the time of one convolution. Back at **1×** the video is in real time
+again, and the page looks as before.
+
+## Threads, cores and the GIL
+
+| Who | What it does |
+|---|---|
+| Reader thread (Python) | Receives the frames and makes the small copy |
+| Worker thread (Python + the version) | The convolution, on the last core |
+| Server threads (Python) | One listens; another answers each request of the page |
+| `rpicam-vid` | A separate program that drives the camera |
+| The browser | Draws the page, in its own process |
+
+**The GIL** (*Global Interpreter Lock*): in Python only one thread at a time can
+run Python code; the threads take turns, every 5 ms. A thread lets the others
+run while it waits for data (the camera pipe, the network) and while it runs a
+C or assembly function called with `ctypes`. So the convolution, the
+conversions and the camera **do run in parallel**, on different cores.
+
+This means:
+
+- **C and assembly are not slowed down by Python.** During the call, the core
+  runs only the instructions of the version. Changing the version only changes
+  which function is called on the next frame.
+- **The core of the worker is not reserved.** The worker always runs on the last
+  core, but Linux can put other programs there too. With 4 cores and the rest of
+  the work being light, it stays almost free.
+- **Memory is shared.** The RAM and the L3 cache are the same for all cores, and
+  the camera writes about 113 MB/s into memory. A version can take a little
+  longer in the video than in the benchmark of Part 9.
+- **Python does compete.** The Python version is Python code, so it holds the GIL
+  most of the time: while it runs, the camera image can be a little less smooth.
+
+### Rebuilt versions: `conv_bench.load()`
+
+The notebook loads each version from its library in `build/`. Loading a path
+again would give back the library already in memory, even after `make` rebuilt
+it: the race and the video would keep running the old code (for example, the
+empty template). `load()` checks the time of the last build of the library and,
+when it changed, loads a copy under a new name, so it always runs the code you
+built last.
+
+## Options
+
+In the notebook, `notebook_stream()` accepts:
+
+| Option | Default | What it does |
+|---|---|---|
+| `work` | `1` | Work per frame at the start (1 to 10); the slider changes it later |
+| `width`, `height` | `2592`, `1944` | Size of the camera frames |
+| `framerate` | `15` | Frames per second asked of the camera |
+| `shrink` | `3` | The images of the page are this many times smaller than the frames |
+| `stride` | detected | Length of a camera row in bytes, if the detection fails |
+| `port` | free one | Port of the page |
+
+For example, `stream = notebook_stream(work=7)`.
+
+From a terminal: `python3 conv_stream.py --port 8000 --framerate 15 --work 1`,
+and `--stride` if needed.
+
+## Files of this branch
+
+| File | What changes |
+|---|---|
+| `conv_stream.py` | New: the camera, the threads, the web server and the page |
+| `src/stream.c` | New: the three conversions in C |
+| `Makefile` | Builds `build/libconv_stream.so` |
+| `conv_bench.py` | `load()` loads a library again after `make` rebuilds it |
+| `project.ipynb` | New Part 10b with the video |
 
 ## Troubleshooting
 
-| Problem | What to do |
-| --- | --- |
-| `rpicam-hello --list-cameras` says `No cameras available!` | Shut the Pi down, unplug it, check that the cable is the Pi 5 type and fully inserted at both ends with the latches closed, and power it on again (Step 1). |
-| The notebook says `No camera detected` | Same as above, then run the photo cell of Part 1 again. |
-| The notebook says the camera did not take the photo | Close any other program using the camera, run `rpicam-hello --list-cameras` in a terminal, and run the photo cell again. |
-| `photo.pgm not found` | Take the photo first: run the photo cell in Part 1. |
-| `uname -m` prints `armv7l` or `armv6l` | The system is 32-bit. Ask your instructor for a microSD card with Raspberry Pi OS (64-bit). |
-| `git clone` asks for a username and password | The repository address is wrong or private. Check the address with your instructor. |
-| `pip install` fails with `incomplete-download` | Slow connection. Run the Step 5 command again; it continues where it stopped. |
-| `pip` says `no such option: --resume-retries` | Old `pip`. Run `~/jupyter-env/bin/pip install --upgrade pip` and repeat Step 5. |
-| `jupyter: No such file or directory` | Use the full path `~/jupyter-env/bin/jupyter` (Part B), or install Jupyter (Step 5). |
-| An exercise cell says `NOT BUILT` | A mistake in your code. The message shows the line and what is wrong: fix it in the cell and run the cell again. |
-| An exercise cell says `MISMATCH` | Your code builds but computes a wrong result. In Parts 3 and 5, check the loop limits and the indexes; in Part 7, check the order of the `madd` operands. |
-| An exercise cell says your code *never ends* or *crashed the program* | A loop never reaches its limit (a counter not increased, or a jump to the wrong label), or an index goes outside the image. Fix the code and run the cell again. |
-| A row of the table in Part 9 says `NOT BUILT` | Run `make` in a terminal and read its error. |
-| Times look much slower than expected | Close other programs, check the heatsink or fan, and run `vcgencmd get_throttled`: `throttled=0x0` means the CPU is not being slowed down by heat or power. |
+| Problem | Solution |
+|---|---|
+| The camera image is skewed or striped | The row length was not detected. Stop the video and start it with the row length, for example `notebook_stream(stride=2624)`. |
+| `The camera did not start the video` | Another program or another video cell is using the camera. Run `stream.stop()`, or restart the kernel. |
+| A version is missing from the buttons | It is not correct or not built: run its cell (Part 3, 5 or 7) again, then restart the video. |
+| The edges freeze with one version | The notebook runs an old build of it. Update the branch (`git pull`) and restart the kernel. |
+| `make` shows an error in `src/stream.c` | Check that you are on this branch and run `make` again; send the error to your instructor. |
+| `libconv_stream.so not found` | Run `make` in the project folder. |
