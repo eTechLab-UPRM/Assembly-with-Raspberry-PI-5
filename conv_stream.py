@@ -29,6 +29,7 @@ import atexit
 import ctypes
 import json
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -51,6 +52,8 @@ DEFAULT_VERSION = "ASM v4 NEON"
 # Convolutions per camera frame. One takes 9.5 ms with ASM v4 and the camera
 # sends a frame every 67 ms, so with 7 the fastest version just keeps up.
 WORK = 7
+V3_NAME = "ASM v3 MAC (yours)"
+V3_SOURCE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src", "conv_student_v3.S")
 
 
 def load_helpers():
@@ -68,18 +71,26 @@ def load_helpers():
     return lib
 
 
+def v3_finished():
+    """ASM v3 starts as a working copy of ASM v2, so its result is correct before
+    the student writes anything. It is finished when it has its 8 madd lines."""
+    with open(V3_SOURCE) as f:
+        return sum(1 for line in f if re.match(r"\s*madd\b", line)) >= 8
+
+
 def load_stream_versions():
     """[(name, function)] of the versions to show: Python, then every C and
-    assembly version that is built (the ones students write, only if correct)."""
+    assembly version that is built (the ones students write, only if ready)."""
     from conv_bench import load_versions
     from conv_demo import check_yours_output
 
-    correct_yours = {line[3:] for line in check_yours_output().splitlines()
-                     if line.startswith("OK ")}
-    for name in sorted(YOURS - correct_yours):
-        print(f"{name} is not in the video: it is not correct yet.", flush=True)
+    ready = {line[3:] for line in check_yours_output().splitlines() if line.startswith("OK ")}
+    if not v3_finished():
+        ready.discard(V3_NAME)
+    for name in sorted(YOURS - ready):
+        print(f"{name} is not in the video: its code is not ready yet.", flush=True)
     return [(PYTHON, None)] + [(n, f) for n, f, _ in load_versions()
-                               if f is not None and (n not in YOURS or n in correct_yours)]
+                               if f is not None and (n not in YOURS or n in ready)]
 
 
 def detect_stride(data, w, h):
