@@ -34,7 +34,7 @@ make
 ```
 
 In the notebook, run the first cells, your cells of Parts 3, 5 and 7 (C v2,
-ASM v1 and ASM v3), and then **Part 10b. Live video (test)**. Click **Stop
+ASM v1 and ASM v3), and then **Part 10b. Live video**. Click **Stop
 video**, or run `stream.stop()`, to free the camera.
 
 Without the notebook, from a terminal:

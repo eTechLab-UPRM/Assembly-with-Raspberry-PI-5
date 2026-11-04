@@ -421,7 +421,6 @@ PAGE = """<!doctype html>
            background: #f4f4f4; cursor: pointer; }
   button.on { background: #1a7f37; color: #fff; border-color: #1a7f37; }
   #stop { margin-left: auto; background: #b42318; color: #fff; border-color: #b42318; }
-  #note { color: #444; margin-bottom: 6px; }
   table { border-collapse: collapse; margin-top: 6px; }
   td, th { padding: 2px 10px; text-align: right; border-bottom: 1px solid #ddd; }
   td:first-child, th:first-child { text-align: left; }
@@ -434,7 +433,6 @@ PAGE = """<!doctype html>
   <div class="view"><b id="restitle">Edges</b><canvas id="res"></canvas></div>
 </div>
 <div class="bar" id="buttons"></div>
-<div id="note"></div>
 <table><thead id="head"></thead><tbody id="rows"></tbody></table>
 <div id="status">Starting...</div>
 <script>
@@ -466,9 +464,6 @@ function build(s) {
   stop.id = "stop"; stop.textContent = "Stop video";
   stop.onclick = () => fetch("stop", {method: "POST"});
   $("buttons").appendChild(stop);
-  $("note").textContent = `The video is in slow motion, so that the differences show: every ` +
-    `camera frame is convolved ${s.work} times (Python: once). The proportions between the C ` +
-    `and assembly versions are the real ones.`;
   $("head").innerHTML = "<tr><th>Version</th><th>Time per convolution</th>" +
     "<th>Max. frames/s (real)</th><th>Keeps up with the camera? (real)</th>" +
     "<th>Max. frames/s in this video</th></tr>";
