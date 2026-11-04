@@ -12,6 +12,7 @@ your work.
 - [Part A. Prepare the Raspberry Pi](#part-a-prepare-the-raspberry-pi)
 - [Part B. Every time you work on the project](#part-b-every-time-you-work-on-the-project)
 - [Part C. Work through the notebook](#part-c-work-through-the-notebook)
+  - [Live video (Part 10b)](#live-video-part-10b)
 - [Part D. Hand in](#part-d-hand-in)
 - [Part E. Return the Raspberry Pi](#part-e-return-the-raspberry-pi)
 - [Troubleshooting](#troubleshooting)
@@ -179,7 +180,29 @@ The notebook has these parts:
 | 8 | Measure assembly v4 (NEON) |
 | 9 | Measure all the versions together |
 | 10 | Watch the race |
+| 10b | Watch the convolution on live video (a demonstration) |
 | 11 | Write your conclusions |
+
+### Live video (Part 10b)
+
+This part is a demonstration: it has no questions and you write no code. It
+applies the convolution to live video from the camera, at the same resolution as
+your photo (2592 × 1944 pixels).
+
+1. Run the cell of Part 10b. The camera appears on the left and its edges on the
+   right.
+2. Choose a version with the buttons. The table shows the measured time of one
+   convolution and how many frames per second each version could process.
+3. Click **Stop video** when you are done. No other cell can use the camera until
+   you do.
+
+- **Buttons:** the versions you write (C v2, ASM v1 and ASM v3) only get a button
+  once their code is complete and correct. If you finish one while the video is
+  running, stop the video and run the cell again.
+- **Slow motion:** the camera delivers at most 15 frames per second, so any
+  version faster than that would look the same. To make the differences visible,
+  each camera frame is convolved 7 times (Python: once).
+- **Hand-in:** the video does not play in the exported HTML. That is normal.
 
 ## Part D. Hand in
 
@@ -231,4 +254,8 @@ Pi.
 | An exercise cell says `MISMATCH` | Your code builds but computes a wrong result. In Parts 3 and 5, check the loop limits and the indexes; in Part 7, check the order of the `madd` operands. |
 | An exercise cell says your code *never ends* or *crashed the program* | A loop never reaches its limit (a counter not increased, or a jump to the wrong label), or an index goes outside the image. Fix the code and run the cell again. |
 | A row of the table in Part 9 says `NOT BUILT` | Run `make` in a terminal and read its error. |
+| Part 10b: a version you wrote has no button | Its code is not complete or not correct. Run its cell (Part 3, 5 or 7) until it says `check: OK`, stop the video and run the Part 10b cell again. In Part 7, also replace every `TODO` pair with `madd`. |
+| Part 10b says `The camera did not start the video` | Another cell or program is using the camera. Click **Stop video** or run `stream.stop()`; if it continues, restart the kernel (**Kernel → Restart**). |
+| Part 10b: the camera image is skewed or striped | The row length was not detected. Click **Stop video** and run the cell with the row length, for example `stream = notebook_stream(stride=2624)`. |
+| Part 10b says `libconv_stream.so not found` | Run `make` in a terminal and read its error. |
 | Times look much slower than expected | Close other programs, check the heatsink or fan, and run `vcgencmd get_throttled`: `throttled=0x0` means the CPU is not being slowed down by heat or power. |

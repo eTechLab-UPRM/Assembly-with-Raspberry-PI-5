@@ -11,7 +11,7 @@ CFLAGS := -O2 -Wall -Wextra -fPIC -shared
 BUILD  := build
 
 all: $(BUILD)/libconv_c.so $(BUILD)/libconv_student_c.so $(BUILD)/libconv_student_v1.so \
-     $(BUILD)/libconv_asm.so $(BUILD)/libconv_student_v3.so
+     $(BUILD)/libconv_asm.so $(BUILD)/libconv_student_v3.so $(BUILD)/libconv_stream.so
 
 # C v1, optimized by the compiler (-O2).
 $(BUILD)/libconv_c.so: src/conv.c | $(BUILD)
@@ -37,6 +37,10 @@ $(BUILD)/libconv_asm.so: src/conv_asm.S | $(BUILD)
 # instead of silently running the previous version.
 $(BUILD)/libconv_student_v3.so: src/conv_student_v3.S | $(BUILD)
 	rm -f $@
+	$(CC) $(CFLAGS) -o $@ $<
+
+# Conversions for the live video of conv_stream.py (not an exercise).
+$(BUILD)/libconv_stream.so: src/stream.c | $(BUILD)
 	$(CC) $(CFLAGS) -o $@ $<
 
 $(BUILD):
