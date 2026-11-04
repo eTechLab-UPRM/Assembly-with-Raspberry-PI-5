@@ -70,22 +70,16 @@ def load_helpers():
 
 def load_stream_versions():
     """[(name, function)] of the versions to show: Python, then every C and
-    assembly version that is built. The ones students write always appear, with
-    function None until they are correct: the page shows those in gray."""
+    assembly version that is built (the ones students write, only if correct)."""
     from conv_bench import load_versions
     from conv_demo import check_yours_output
 
     correct_yours = {line[3:] for line in check_yours_output().splitlines()
                      if line.startswith("OK ")}
     for name in sorted(YOURS - correct_yours):
-        print(f"{name} is not available in the video: it is not correct yet.", flush=True)
-    versions = [(PYTHON, None)]
-    for name, func, _ in load_versions():
-        if name in YOURS:
-            versions.append((name, func if name in correct_yours else None))
-        elif func is not None:
-            versions.append((name, func))
-    return versions
+        print(f"{name} is not in the video: it is not correct yet.", flush=True)
+    return [(PYTHON, None)] + [(n, f) for n, f, _ in load_versions()
+                               if f is not None and (n not in YOURS or n in correct_yours)]
 
 
 def detect_stride(data, w, h):
@@ -179,11 +173,9 @@ class Stream:
             self.lib = load_helpers()
         if self.versions is None:
             self.versions = load_stream_versions()
-        # The versions that can run: Python has no function, and neither do the
-        # ones students have not finished, which can't be selected.
-        self.funcs = {n: f for n, f in self.versions if f is not None or n == PYTHON}
+        self.funcs = dict(self.versions)
         if self.selected not in self.funcs:
-            self.selected = list(self.funcs)[-1]
+            self.selected = self.versions[-1][0]
         self._start_camera()
         threading.Thread(target=self._reader, daemon=True).start()
         threading.Thread(target=self._worker, daemon=True).start()
@@ -349,8 +341,7 @@ class Stream:
             "selected": self.selected, "busy": self.busy, "shown": self.shown,
             "work": WORK,
             "camera_fps": cam_fps, "result_fps": self.res_rate.fps(),
-            "versions": [{"name": n, "ms": self.ms.get(n), "ready": n in self.funcs}
-                         for n, _ in self.versions],
+            "versions": [{"name": n, "ms": self.ms.get(n)} for n, _ in self.versions],
         }
 
     def frames(self, cam_seen, res_seen):
@@ -429,13 +420,11 @@ PAGE = """<!doctype html>
   button { font: inherit; padding: 4px 10px; border: 1px solid #888; border-radius: 4px;
            background: #f4f4f4; cursor: pointer; }
   button.on { background: #1a7f37; color: #fff; border-color: #1a7f37; }
-  button:disabled { background: #eee; color: #999; border-color: #ccc; cursor: not-allowed; }
   #stop { margin-left: auto; background: #b42318; color: #fff; border-color: #b42318; }
   table { border-collapse: collapse; margin-top: 6px; }
   td, th { padding: 2px 10px; text-align: right; border-bottom: 1px solid #ddd; }
   td:first-child, th:first-child { text-align: left; }
   tr.on td { font-weight: bold; }
-  tr.off td { color: #999; }
   .ok { color: #1a7f37; } .slow { color: #b42318; }
   #status { margin-top: 6px; color: #444; }
 </style></head><body>
@@ -468,8 +457,6 @@ function build(s) {
   for (const v of s.versions) {
     const b = document.createElement("button");
     b.textContent = v.name; b.dataset.name = v.name;
-    b.disabled = !v.ready;
-    if (!v.ready) b.title = "Not available yet: this version is not correct.";
     b.onclick = () => fetch("select?v=" + encodeURIComponent(v.name), {method: "POST"});
     $("buttons").appendChild(b);
   }
@@ -498,7 +485,7 @@ function update(s) {
     const video = max == null ? null : v.name === "Python" ? max : max / s.work;
     const keeps = max == null || camFps == null ? "-" : max >= camFps * 0.95
       ? '<span class="ok">yes</span>' : '<span class="slow">no</span>';
-    return `<tr class="${v.name === s.selected ? "on" : v.ready ? "" : "off"}"><td>${v.name}</td>` +
+    return `<tr class="${v.name === s.selected ? "on" : ""}"><td>${v.name}</td>` +
            `<td>${v.ms == null ? "-" : v.ms >= 1000 ? fmt(v.ms / 1000, 1) + " s" : fmt(v.ms, 1) + " ms"}</td>` +
            `<td>${fps(max, 1)}</td><td>${keeps}</td><td>${fps(video, 1)}</td></tr>`;
   }).join("");

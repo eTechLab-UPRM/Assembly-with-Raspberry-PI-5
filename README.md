@@ -57,12 +57,9 @@ To go back to the course version: `git checkout main`.
 | **Table** | For every version you have tried: the time of one convolution, the real frames per second it could process, whether that keeps up with the camera, and the frames per second it can reach in this video |
 | **Stop video** | Stops the camera, the threads and the page |
 
-The versions you write (C v2, ASM v1, ASM v3) can be selected only if they give
-the correct result. Until then, their button and their row in the table are gray,
-and the cell prints, for example,
-`ASM v1 brute (yours) is not available in the video: it is not correct yet.`
-They are checked when the video starts: when one is ready, stop the video and run
-the cell again.
+The versions you write (C v2, ASM v1, ASM v3) appear only if they give the
+correct result. If one is missing, the cell prints, for example,
+`ASM v1 brute (yours) is not in the video: it is not correct yet.`
 
 ## How it works
 
@@ -296,7 +293,7 @@ From a terminal: `python3 conv_stream.py --port 8000 --framerate 15`, and
 |---|---|
 | The camera image is skewed or striped | The row length was not detected. Stop the video and start it with the row length, for example `notebook_stream(stride=2624)`. |
 | `The camera did not start the video` | Another program or another video cell is using the camera. Run `stream.stop()`, or restart the kernel. |
-| The button of a version is gray | It is not correct or not built: run its cell (Part 3, 5 or 7) again, then restart the video. |
+| A version is missing from the buttons | It is not correct or not built: run its cell (Part 3, 5 or 7) again, then restart the video. |
 | The edges freeze with one version | The notebook runs an old build of it. Update the branch (`git pull`) and restart the kernel. |
 | `make` shows an error in `src/stream.c` | Check that you are on this branch and run `make` again; send the error to your instructor. |
 | `libconv_stream.so not found` | Run `make` in the project folder. |
