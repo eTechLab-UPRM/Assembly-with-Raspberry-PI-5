@@ -1,4 +1,4 @@
-# Live video test: the convolution on the camera, in real time
+# Live video test: the convolution on the camera
 
 This branch (`streaming-test`) is an experiment. It adds a **live video** to the
 project: on the left, the Raspberry Pi camera; on the right, the edges computed
@@ -14,7 +14,7 @@ This one explains only the live video.
 - [What you see](#what-you-see)
 - [How it works](#how-it-works)
 - [Why the video stops at 15 frames per second](#why-the-video-stops-at-15-frames-per-second)
-- [Work per frame: the slow motion](#work-per-frame-the-slow-motion)
+- [The slow motion: 7 convolutions per frame](#the-slow-motion-7-convolutions-per-frame)
 - [Threads, cores and the GIL](#threads-cores-and-the-gil)
 - [Options](#options)
 - [Files of this branch](#files-of-this-branch)
@@ -54,8 +54,7 @@ To go back to the course version: `git checkout main`.
 | **Camera** (left) | The camera, live, with its frames per second |
 | **Edges** (right) | The output of the chosen version, with its frames per second |
 | **Version buttons** | The version that processes the frames; the change takes effect on the next frame |
-| **Work per frame** | 1× is real time; N× is slow motion (see below) |
-| **Table** | For every version you have tried: the time of one convolution, the frames per second it could process, and whether it keeps up with the camera |
+| **Table** | For every version you have tried: the time of one convolution, the real frames per second it could process, whether that keeps up with the camera, and the frames per second it can reach in this video |
 | **Stop video** | Stops the camera, the threads and the page |
 
 The versions you write (C v2, ASM v1, ASM v3) appear only if they give the
@@ -109,7 +108,9 @@ it from core to core. Again and again:
    a slow version works are skipped, so the delay does not pile up.
 2. Converts the brightness bytes to the `int32` image that every version of the
    project expects.
-3. Calls the chosen version **and times only that call**:
+3. Calls the chosen version **7 times on the same frame** (Python: once; see
+   [the slow motion](#the-slow-motion-7-convolutions-per-frame)) **and times
+   only those calls**:
    ```python
    self.funcs[name](c_img, c_out, c_k, h, w)
    ```
@@ -146,17 +147,18 @@ A notebook cannot play video, but it can show a web page inside a cell:
   something new** and replies with the small images it has not sent yet and the
   data of the table.
 - The page draws the images on two `<canvas>` and updates the table.
-- The buttons and the slider send the choice to the server, and the worker uses
-  it on the next frame.
+- The buttons send the choice to the server, and the worker uses it on the next
+  frame.
 
 ### Total time of a frame
 
 The table shows the time of the convolution only. The worker also does the two
 conversions of steps 2 and 4, a few milliseconds per frame. So:
 
-- **Max. frames/s** (1 ÷ the time of one convolution) is an upper limit.
-- The frames per second in the title of the edges are the real ones and include
-  the conversions, so they are a little lower.
+- **Max. frames/s (real)** is 1 ÷ the time of one convolution: an upper limit.
+- **Max. frames/s in this video** is that number ÷ 7 (Python: not divided).
+- The frames per second in the title of the edges are the ones measured in the
+  video and include the conversions, so they are a little lower.
 
 Between the moment the camera takes a frame and the moment you see it there
 are also the transfer through the pipe (7.5 MB per frame), the reply to the
@@ -173,7 +175,7 @@ waits for it, so every fast version shows 15 frames per second.
 
 With the times of the benchmark (Part 9) on a Pi 5:
 
-| Version | One convolution | Could process | You see at 1× |
+| Version | One convolution | Could process | It would show with one convolution per frame |
 |---|---|---|---|
 | Python | about 8.7 s | 0.1 frames/s | 0.1 frames/s |
 | ASM v1 | 141 ms | 7 frames/s | about 7 |
@@ -181,28 +183,33 @@ With the times of the benchmark (Part 9) on a Pi 5:
 | ASM v2 / ASM v3 | 19 ms | 52 frames/s | **15** (camera limit) |
 | ASM v4 NEON | 9.5 ms | 105 frames/s | **15** (camera limit) |
 
-The table of the page shows all of them in **Max. frames/s**, but the video of
-ASM v2, v3 and v4 looks the same.
+With one convolution per frame, the video of ASM v2, v3 and v4 would look the
+same. That is why the video runs in slow motion.
 
 A smaller size does not help: with 4 times fewer pixels the camera goes faster,
 but every version is also 4 times faster, and the differences hide again at the
 new limit. The screen is another limit: it draws at most 60 frames per second.
 
-## Work per frame: the slow motion
+## The slow motion: 7 convolutions per frame
 
-The **Work per frame** slider (1× to 10×) makes the differences visible in the
-video:
+So that the differences show in the video of the edges, the video is **always in
+slow motion**, at the full size of 2592 × 1944:
 
-- At **N×**, every camera frame goes through the version **N times in a row**,
-  as if the image were N times larger. Python always runs once: N times would
-  take minutes.
+- Every camera frame goes through the version **7 times in a row**, as if the
+  image were 7 times larger. Python runs once: 7 times would take a minute per
+  frame.
 - Only the convolution is repeated: the conversions run once per frame, so the
   difference comes only from the code of each version.
-- Every frame rate is divided by N, and the **proportions between the versions
-  stay the real ones**, like a slow-motion replay of a race.
+- Every frame rate of C and assembly is divided by 7, and the **proportions
+  between them stay the real ones**, like a slow-motion replay of a race.
+
+**Why 7:** the camera sends a frame every 67 ms and one convolution of ASM v4
+takes 9.5 ms, so about 7 fit in a frame. ASM v4 just keeps up with the camera and
+all the others fall below it. With fewer, the fastest versions look the same
+again; with more, everything is slower and nothing new shows.
 
 The frames per second are not set by the program: they are what each version
-actually reaches with that work. With the times of the table above, at **7×**:
+actually reaches with that work. With the times of the table above:
 
 | Version | Work per frame | You see |
 |---|---|---|
@@ -211,10 +218,10 @@ actually reaches with that work. With the times of the table above, at **7×**:
 | C v1 / C v2 | about 450 ms | about 2 frames/s, in steps |
 | ASM v1 | about 1 s | about 1 frame/s, almost photos |
 
-With N > 1 the table adds the column **Max. frames/s at N×**, and *Keeps up
-with the camera?* uses those frame rates. The **Time per convolution** is
-always the time of one convolution. Back at **1×** the video is in real time
-again, and the page looks as before.
+The video is a comparison, **not the real speed** of each version. The real
+values are in the table of the page: **Time per convolution** and **Max. frames/s
+(real)** are for one convolution, and *Keeps up with the camera?* uses those real
+frame rates.
 
 ## Threads, cores and the GIL
 
@@ -261,17 +268,14 @@ In the notebook, `notebook_stream()` accepts:
 
 | Option | Default | What it does |
 |---|---|---|
-| `work` | `1` | Work per frame at the start (1 to 10); the slider changes it later |
 | `width`, `height` | `2592`, `1944` | Size of the camera frames |
 | `framerate` | `15` | Frames per second asked of the camera |
 | `shrink` | `3` | The images of the page are this many times smaller than the frames |
 | `stride` | detected | Length of a camera row in bytes, if the detection fails |
 | `port` | free one | Port of the page |
 
-For example, `stream = notebook_stream(work=7)`.
-
-From a terminal: `python3 conv_stream.py --port 8000 --framerate 15 --work 1`,
-and `--stride` if needed.
+From a terminal: `python3 conv_stream.py --port 8000 --framerate 15`, and
+`--stride` if needed.
 
 ## Files of this branch
 
