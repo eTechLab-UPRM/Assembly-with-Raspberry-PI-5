@@ -202,18 +202,22 @@ your photo (2592 × 1944 pixels).
 - **Slow motion:** the camera delivers at most 15 frames per second, so any
   version faster than that would look the same. To make the differences visible,
   each camera frame is convolved 7 times (Python: once).
-- **Hand-in:** the video does not play in the exported HTML. That is normal.
+- **Hand-in:** the video is not saved in the notebook file. That is normal.
 
 ## Part D. Hand in
+
+Hand in **only the notebook**, as an `.ipynb` file named with your full name and
+no spaces: **`NombreCompleto.ipynb`** (for example, `JuanPerezRivera.ipynb`).
 
 1. Check that every code cell has its output and every **ANSWER Q# HERE**
    cell has your answer.
 2. Save the notebook (**Ctrl + S**).
-3. Export it: **File → Save and Export Notebook As… → HTML**. The browser saves
-   an `.html` file in `~/Downloads`.
-4. Open the HTML file to check that your answers, your photo and the outputs
-   are there.
-5. Upload the HTML file to Moodle.
+3. Download it: **File → Download**. The browser saves `project.ipynb` in
+   `~/Downloads`.
+4. In `~/Downloads`, rename the downloaded file to `NombreCompleto.ipynb`, with
+   your own full name. Do not rename `project.ipynb` in the project folder: the
+   commands of Part B open it by that name.
+5. Upload that file to Moodle.
 
 ## Part E. Return the Raspberry Pi
 
