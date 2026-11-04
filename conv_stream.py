@@ -467,8 +467,8 @@ function build(s) {
   stop.onclick = () => fetch("stop", {method: "POST"});
   $("buttons").appendChild(stop);
   $("note").textContent = `The video is in slow motion, so that the differences show: every ` +
-    `camera frame is convolved ${s.work} times (Python: once), which divides every frame rate ` +
-    `by ${s.work}. The proportions between the C and assembly versions are the real ones.`;
+    `camera frame is convolved ${s.work} times (Python: once). The proportions between the C ` +
+    `and assembly versions are the real ones.`;
   $("head").innerHTML = "<tr><th>Version</th><th>Time per convolution</th>" +
     "<th>Max. frames/s (real)</th><th>Keeps up with the camera? (real)</th>" +
     "<th>Max. frames/s in this video</th></tr>";
